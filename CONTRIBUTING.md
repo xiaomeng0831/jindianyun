@@ -1,6 +1,6 @@
 # 参与贡献
 
-感谢你愿意改进津电云。这个项目刻意保持简单：**零构建、零依赖、纯静态**，任何改动都应该保持这一点。
+感谢你愿意改进津电云。站点本身刻意保持简单：**零构建、零依赖、纯静态**。本地预览和部署都不需要 npm，也不需要构建：GitHub Pages 直接发布 `main` 上的文件。唯一的 npm 用途是可选的 Playwright 冒烟测试（`npm run test:e2e`），不参与部署，站点运行时仍然零依赖。
 
 ## 本地运行
 
@@ -32,7 +32,7 @@ python3 -m http.server 8000
 
 ## 改动约定
 
-- **不要引入构建步骤**。不加 npm、不加打包器、不加 TypeScript。浏览器直接跑 ES 模块。
+- **保持零依赖**。页面运行时不要引入 npm 包、框架、CDN 资源或构建步骤（可选的 Playwright 冒烟测试不参与部署）。不加打包器、不加 TypeScript。浏览器直接跑 ES 模块。
 - **不要引入外部 CDN**。地图、字体、图标全部自包含，离线可用。
 - **不要手改 `data/basemap.json`**。它是脚本产物；改数据请改 `scripts/build_basemap.js` 后重新生成。
 - **数据改动请注明来源**。`data/stations.json` 的每个 `note` 字段应写清出处（如「北洋维基 2024-04」）。
@@ -49,6 +49,16 @@ python3 -m http.server 8000
 ```
 
 请确认：地图能画出来、搜索能出结果、点站点能开面板、点插口能看到预计结束时间、移动端没有横向滚动。
+
+可选冒烟测试（不参与 GitHub Pages 部署，站点运行时仍然零依赖）：
+
+```bash
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
+
+`tests/smoke.spec.js` 会打开页面、搜索「格园」并确认站点面板打开。Pages 不会运行这条命令。
 
 ## 提交信息
 
