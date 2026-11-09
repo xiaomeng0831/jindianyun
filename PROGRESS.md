@@ -27,6 +27,18 @@
   - `js/panel.js` + `js/app.js` + `js/format.js`：搜索、详情面板、插口点击看预计结束时间
   - `README.md`、`docs/adapter-guide.md`、`LICENSE`（MIT）、`404.html`、`.gitignore`
 
+- **2026-11-09 缺陷修复阶段**（5 个文件，未提交）
+  - `js/mock-adapter.js`：充电会话的 startedAt/endsAt 锚定到 15 分钟时段起点，30s tick 不再把结束时间后移，倒计时正常减少；`updatedAt` 仍随 tick 前进
+  - `js/app.js`：周期刷新调用 `MapView.setStations` 不再传 `{silent:true}`，已打开的地图 tooltip 会同步刷新
+  - `js/app.js`：搜索框按 Enter 选中结果后同步隐藏 `#search-clear`
+  - `js/app.js`：`restoreFromHash` 用 try/catch 包裹 `decodeURIComponent`，`#%` 等非法哈希不再触发“页面加载失败”
+  - `js/map.js`：比例尺与版权信息的默认 `overlayInset` 58→96，不再被 `#legend` 遮挡（桌面/移动端均验证）
+  - `js/panel.js`：锂电柜 available/total 为 null 时回退“换电状态待接入”，不再误显示“可用电池 0 块”
+  - `css/style.css`：移动端搜索框字号 16px，避免 iOS Safari 聚焦时自动放大页面
+  - 验证：`node --check` 7 个 JS 全部通过；重启本地 8765 静态服务并 curl 全部资源 200；
+    ego lite 实测桌面/移动端布局、65s 倒计时递减、tooltip 随刷新更新、Enter 清空搜索、
+    `index.html#%` 正常加载、锂电柜占位文案
+
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）
 - [x] 19+9 个点位坐标（按命名建筑定位）

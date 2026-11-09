@@ -217,6 +217,8 @@ export class StationPanel {
     if (!root) throw new Error('StationPanel 需要一个根元素（#panel）');
     this.root = root;
     this.root.classList.add('panel');
+    this.root.setAttribute('aria-hidden', 'true');
+    this.root.setAttribute('inert', '');
     this.onClose = options.onClose || null;
     this.onRefresh = options.onRefresh || null;
     this.onSocketSelect = options.onSocketSelect || null;
@@ -464,11 +466,14 @@ export class StationPanel {
       { key: 'fault', label: '故障', value: hasKnown ? counts.fault : '—' },
       { key: 'total', label: '插口总数', value: sockets.length || '—' },
     ];
-    dom.statRow.innerHTML = tiles.map((tile) => `
-      <div class="stat stat-${tile.key}">
+    dom.statRow.innerHTML = tiles.map((tile) => {
+      const muted = tile.key !== 'total' && (tile.value === 0 || tile.value === '—');
+      return `
+      <div class="stat stat-${tile.key}${muted ? ' is-zero' : ''}">
         <span class="stat-value">${tile.value}</span>
         <span class="stat-label">${tile.label}</span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   _renderSockets(sockets) {
@@ -605,8 +610,8 @@ export class StationPanel {
     dom.cabinetList.innerHTML = cabinets.map((cabinet) => {
       const statusText = this._cabinetStatusText(cabinet.status);
       let batteryText = '换电状态待接入';
-      const available = Number(cabinet.available);
-      const total = Number(cabinet.total);
+      const available = cabinet.available == null ? NaN : Number(cabinet.available);
+      const total = cabinet.total == null ? NaN : Number(cabinet.total);
       if (Number.isFinite(available) && Number.isFinite(total) && total > 0) {
         batteryText = `可用电池 ${available}/${total} 块`;
       } else if (Number.isFinite(available)) {

@@ -310,6 +310,9 @@ function applySingleDetail(stationId, detail) {
   if (state.selectedId === stationId && state.panel) {
     state.panel.setDetail(detail, { updatedAt: readUpdatedAt(detail) });
   }
+  if (state.resultsEl && !state.resultsEl.hidden) {
+    renderResults(state.query, { preserveActive: true });
+  }
 }
 
 function normalizeDetail(value) {
@@ -361,7 +364,7 @@ function subscribeAdapter() {
 function handleAdapterUpdate() {
   detailCache.clear();
   applyOccupancyToStations();
-  callFirst(state.mapView, ['setStations'], state.stations, { silent: true });
+  callFirst(state.mapView, ['setStations'], state.stations);
 
   const stationId = state.selectedId;
   if (stationId) {
@@ -589,6 +592,8 @@ function handleSearchKeydown(event) {
     if (!station) return;
     event.preventDefault();
     event.currentTarget.value = '';
+    const clearBtn = document.getElementById('search-clear');
+    if (clearBtn) clearBtn.hidden = true;
     event.currentTarget.blur();
     selectStation(station);
     return;
@@ -709,7 +714,13 @@ function updateHash(stationId) {
 }
 
 function restoreFromHash() {
-  const raw = decodeURIComponent(location.hash.replace(/^#/, ''));
+  let raw = '';
+  try {
+    raw = decodeURIComponent(location.hash.replace(/^#/, ''));
+  } catch {
+    // 哈希中有非法百分号编码（例如 #%），当作没有哈希处理
+    raw = '';
+  }
   if (!raw) return;
   const id = raw.startsWith('station=') ? raw.slice('station='.length) : raw;
   const station = state.byId.get(id);

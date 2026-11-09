@@ -373,6 +373,7 @@ button {
   color: var(--text);
   font-size: 0.88rem;
   outline: none;
+  /* iOS Safari 聚焦小于 16px 的输入框会自动放大视口 */
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   -webkit-appearance: none;
   appearance: none;
@@ -742,6 +743,14 @@ ul.search-results li {
 .stat-charging .stat-value { color: var(--charging-strong); }
 .stat-idle .stat-value { color: var(--idle-strong); }
 .stat-fault .stat-value { color: var(--fault-strong); }
+
+.stat.is-zero {
+  --stat-color: var(--border-strong);
+}
+
+.stat.is-zero .stat-value {
+  color: var(--text-3);
+}
 
 /* 分区 */
 
@@ -1228,6 +1237,10 @@ ul.search-results li {
   border-radius: 50%;
 }
 
+/* 静态图例回退（JS 接管前） */
+.legend-dot.legend-bike { background: var(--bike); }
+.legend-dot.legend-car { background: var(--car); }
+
 .legend-dot.is-free { background: var(--pin-free); }
 .legend-dot.is-mid { background: var(--pin-mid); }
 .legend-dot.is-full { background: var(--pin-full); }
@@ -1523,6 +1536,12 @@ ul.search-results li {
 }
 
 @media (max-width: 899px) {
+  /* iOS Safari 在聚焦小于 16px 的输入框时会自动放大视口，移动端保持 16px */
+  .site-header input[type="search"],
+  .site-header input[type="text"] {
+    font-size: 16px;
+  }
+
   .site-header {
     top: calc(10px + env(safe-area-inset-top));
     right: 10px;
@@ -1561,6 +1580,8 @@ ul.search-results li {
   .site-header input[role="searchbox"],
   .site-header .search-box input {
     width: 100%;
+    /* iOS Safari 在聚焦小于 16px 的输入框时会自动放大页面，移动端固定 16px */
+    font-size: 16px;
   }
 
   .map-hint {

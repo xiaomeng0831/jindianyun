@@ -53,18 +53,25 @@ function clamp(v, lo, hi) {
  */
 export function getStationOccupancy(station) {
   const sockets = Math.max(0, Math.round(Number(station && station.sockets) || 0));
+  let occupiedKnown = false;
   let occupied = 0;
-  if (station && Number.isFinite(station.occupied)) occupied = station.occupied;
-  else if (station && Number.isFinite(station.busy)) occupied = station.busy;
-  else if (station && Number.isFinite(station.occupancy) && sockets > 0) {
+  if (station && Number.isFinite(station.occupied)) {
+    occupied = station.occupied;
+    occupiedKnown = true;
+  } else if (station && Number.isFinite(station.busy)) {
+    occupied = station.busy;
+    occupiedKnown = true;
+  } else if (station && Number.isFinite(station.occupancy) && sockets > 0) {
     occupied = Math.round(station.occupancy * sockets);
+    occupiedKnown = true;
   }
   occupied = Math.round(clamp(occupied, 0, sockets));
+  const hasData = occupiedKnown && sockets > 0;
   return {
     sockets,
     occupied,
-    free: sockets > 0 ? sockets - occupied : null,
-    ratio: sockets > 0 ? occupied / sockets : null,
+    free: hasData ? sockets - occupied : null,
+    ratio: hasData ? occupied / sockets : null,
   };
 }
 
@@ -913,7 +920,7 @@ export class MapView {
     const meters = niceDistance(targetPx * mpp);
     const px = Math.max(24, meters / mpp);
     const x = 14;
-    const inset = Number.isFinite(this.options.overlayInset) ? this.options.overlayInset : 58;
+    const inset = Number.isFinite(this.options.overlayInset) ? this.options.overlayInset : 96;
     const y = h - inset;
     const theme = this.theme;
     ctx.save();
@@ -942,7 +949,7 @@ export class MapView {
   _drawAttribution(ctx, w, h) {
     const theme = this.theme;
     const text = '底图 © OpenStreetMap 贡献者';
-    const inset = Number.isFinite(this.options.overlayInset) ? this.options.overlayInset : 58;
+    const inset = Number.isFinite(this.options.overlayInset) ? this.options.overlayInset : 96;
     const y = h - inset;
     ctx.save();
     ctx.font = `500 9.5px ${LABEL_FONT_STACK}`;

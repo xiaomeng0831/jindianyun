@@ -95,6 +95,9 @@ function computeDetail(station, now) {
   if (weekend) base *= curve === CURVES.dorm ? 1.05 : 0.8;
 
   const slot = Math.floor(now / SLOT_MS);
+  // 会话时间锚定到时段起点，而不是当前的 now；否则每次 tick 都会把
+  // startedAt / endsAt 一起后移，倒计时永远不减少。
+  const slotStart = slot * SLOT_MS;
   const rand = mulberry32(hashString(`${station.id}:${slot}`));
 
   // 站点个体差异：有的总是偏满，有的偏空
@@ -110,11 +113,12 @@ function computeDetail(station, now) {
       continue;
     }
     if (r < 0.01 + target) {
-      // 充电中：会话时长 1–8 小时，开始时间落在过去
+      // 充电中：会话时长 1–8 小时，开始时间落在时段起点之前
       const sessionMs = (1 + rand() * 7) * 3600 * 1000;
-      // 让会话「已经进行了一部分」，保证 endsAt 在合理未来
+      // 让会话「已经进行了一部分」；以时段起点为锚，
+      // 同一时段内 startedAt / endsAt 保持不变，倒计时才会逐秒减少
       const elapsed = rand() * sessionMs * 0.9;
-      const startedAt = now - elapsed;
+      const startedAt = slotStart - elapsed;
       const endsAt = startedAt + sessionMs;
       const soc = Math.min(99, Math.round((elapsed / sessionMs) * 100));
       sockets.push({ no, status: SOCKET_STATUS.CHARGING, startedAt, endsAt, soc });
