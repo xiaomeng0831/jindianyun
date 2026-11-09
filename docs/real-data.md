@@ -41,7 +41,7 @@
 
 - 1895 行政楼北侧：快充 8 + 慢充 6
 - 桃园餐厅东侧：快充 4 + 慢充 3
-- 其余 6 处点位插口数暂缺
+- 其余 6 处点位（体育馆、大通、34/37/55 教、南门内侧）：北洋维基未收录具体快慢充配比，项目中已按车位规模补齐预估插口数（6~8 口/处，标记 `socketsApprox: true`）
 
 ---
 
@@ -69,66 +69,36 @@
 
 ---
 
-## 怎么接进津电云
+## 怎么接进津电云（已内置开箱即用方案）
 
-不管走哪条路线，最终都是实现 `js/adapter.js` 里定义的适配器契约。骨架：
+本项目已经内置了符合 `js/adapter.js` 契约的 HTTP 实时适配器 [`js/http-adapter.js`](../js/http-adapter.js) 以及零依赖本地代理脚手架 [`scripts/cqt_proxy.mjs`](../scripts/cqt_proxy.mjs)，无需自行从头编写：
 
-```js
-// js/http-adapter.js
-import { SOCKET_STATUS } from './adapter.js';
+1. **配置环境变量**
+   ```bash
+   cp .env.example .env
+   # 在 .env 中填入抓包获得的 CQT_OPEN_ID 与 CQT_PHONENUMBER
+   ```
+2. **启动本地代理服务**（Node.js 18+，自带 60 秒缓存、单飞限流与 CORS 头）
+   ```bash
+   # 真实上游模式（若未填凭据会自动回退模拟数据）
+   node scripts/cqt_proxy.mjs
 
-export function createHttpAdapter(stations, { endpoint, token }) {
-  let cache = {};
-  let updatedAt = 0;
-  const listeners = new Set();
+   # 或者强制使用本地联调模拟模式
+   node scripts/cqt_proxy.mjs --mock
+   ```
+3. **前端切换至 HTTP 适配器**
+   在浏览器打开：
+   ```text
+   http://127.0.0.1:8765/?adapter=http&endpoint=http://127.0.0.1:8787/api/stations
+   ```
+   `js/http-adapter.js` 默认以 `js/mock-adapter.js` 作为 `fallbackAdapter`，对于代理尚未覆盖的站点（例如优易充电动汽车桩）会自动无缝回退到本地确定性模拟数据，并在网络抖动时保留上一轮快照（Stale-if-Error）。
 
-  async function pull() {
-    const res = await fetch(`${endpoint}/stations`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const raw = await res.json();          // 你的后端返回的数据
-    cache = raw.map(toDetail);             // 转成契约要求的 detail
-    updatedAt = Date.now();
-    listeners.forEach((cb) => cb({ updatedAt }));
-  }
-
-  function toDetail(item) {
-    return {
-      stationId: item.id,
-      updatedAt: Date.now(),
-      sockets: item.ports.map((p) => ({
-        no: p.index,
-        status: p.charging ? SOCKET_STATUS.CHARGING
-              : p.fault ? SOCKET_STATUS.FAULT : SOCKET_STATUS.IDLE,
-        startedAt: p.startTime ?? null,
-        endsAt: p.estimatedEnd ?? null,
-        soc: p.soc ?? null,
-      })),
-      cabinets: [],
-    };
-  }
-
-  setInterval(() => pull().catch(() => {}), 60_000); // 注意频率限制！
-
-  return {
-    get updatedAt() { return updatedAt; },
-    getStationDetail: (id) => cache[id] ?? null,
-    getSnapshot: () => cache,
-    subscribe(cb) { listeners.add(cb); return () => listeners.delete(cb); },
-    refresh: pull,
-  };
-}
-```
-
-然后在 `js/app.js` 的 `createAdapter()` 里把它排在 `createMockAdapter` 之前（或按 URL 参数 / 环境判断启用）。
-
-**安全提醒**：任何凭据都不要写进前端代码。前端是公开的，`token` 会出现在浏览器的网络面板里。真实部署时，凭据必须留在后端，前端只调你自己的后端。
+**安全提醒**：任何凭据都不要写进前端代码。前端是公开的，`token` 或 `OPEN_ID` 必须留在本地 `.env` 与后端代理中，前端只请求本地代理接口。
 
 ---
 
 ## 本项目现在的状态
 
-- `data/stations.json`：**静态点位信息已按北洋维基校正**（18 处自行车 / 229 车位 / 8 组锂电柜；8 处电动汽车点位，其中 2 处有插口数）
-- `js/mock-adapter.js`：模拟数据，按作息曲线演化
-- 真实适配器：**未实现**，只留了契约和本文档
+- `data/stations.json`：**静态点位信息已按北洋维基校正**（18 处自行车 / 229 车位 / 8 组锂电柜；8 处电动汽车点位共 61 车位，其中 2 处为维基实测快/慢充数、6 处为按车棚规模补齐的预估车位数 `socketsApprox: true`）
+- `js/mock-adapter.js`：确定性模拟数据，按四套作息曲线演化并提供 24 小时繁忙度趋势
+- `js/http-adapter.js` + `scripts/cqt_proxy.mjs`：**已实现** HTTP 实时适配器与常青藤智能充电本地缓存代理脚手架，支持 `?adapter=http` 一键切换

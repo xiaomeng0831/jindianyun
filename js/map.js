@@ -235,27 +235,29 @@ export class MapView {
   }
 
   /** 缩放并平移到某个站点（详情面板跳转用）。第二参数可为缩放级别或 {zoom}。 */
-  focusStation(id, targetZoom = 3) {
+  focusStation(id, targetZoom = 1.65) {
     const st = this._byId.get(id);
     if (!st) return;
     let z = targetZoom;
-    if (z && typeof z === 'object') z = Number.isFinite(z.zoom) ? z.zoom : 3;
-    if (!Number.isFinite(z)) z = 3;
+    if (z && typeof z === 'object') z = Number.isFinite(z.zoom) ? z.zoom : 1.65;
+    if (!Number.isFinite(z)) z = 1.65;
     const p = projectLonLat(st.lon, st.lat);
     this._cancelAnimation();
     this._usingFit = false;
     this._zoom = clamp(Math.max(this._zoom, z), MIN_ZOOM, MAX_ZOOM);
-    this._center = { x: p.x, y: p.y };
+    const scale = this._baseScale * Math.pow(2, this._zoom);
+    const offsetX = this._size.w >= 900 ? 160 / scale : 0;
+    this._center = { x: p.x + offsetX, y: p.y };
     this._requestDraw();
     if (this.selectedId === id) this._showTooltipForStation(st);
   }
 
   /** 缩放并平移到任意经纬度（楼宇搜索定位用）。 */
-  focusPoint(lon, lat, targetZoom = 3) {
+  focusPoint(lon, lat, targetZoom = 1.8) {
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
     let z = targetZoom;
-    if (z && typeof z === 'object') z = Number.isFinite(z.zoom) ? z.zoom : 3;
-    if (!Number.isFinite(z)) z = 3;
+    if (z && typeof z === 'object') z = Number.isFinite(z.zoom) ? z.zoom : 1.8;
+    if (!Number.isFinite(z)) z = 1.8;
     const p = projectLonLat(lon, lat);
     this._cancelAnimation();
     this._usingFit = false;
@@ -984,15 +986,16 @@ export class MapView {
     const text = '底图 © OpenStreetMap 贡献者';
     const inset = Number.isFinite(this.options.overlayInset) ? this.options.overlayInset : 96;
     const y = h - inset;
+    const x = w - 72;
     ctx.save();
     ctx.font = `500 9.5px ${LABEL_FONT_STACK}`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
     ctx.strokeStyle = theme.labelHalo;
     ctx.lineWidth = 3;
-    ctx.strokeText(text, w - 10, y);
+    ctx.strokeText(text, x, y);
     ctx.fillStyle = theme.attribution;
-    ctx.fillText(text, w - 10, y);
+    ctx.fillText(text, x, y);
     ctx.restore();
   }
 

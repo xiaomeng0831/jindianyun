@@ -261,7 +261,7 @@ function readDetail(stationId) {
       trackDetailPromise(stationId, raw);
       return null;
     }
-    const detail = normalizeDetail(raw);
+    const detail = normalizeDetail(raw, stationId);
     if (detail) detailCache.set(stationId, detail);
     return detail;
   };
@@ -305,7 +305,7 @@ function trackDetailPromise(stationId, promise) {
   if (pendingDetails.has(stationId)) return;
   const tracked = Promise.resolve(promise).then((raw) => {
     pendingDetails.delete(stationId);
-    const detail = normalizeDetail(raw);
+    const detail = normalizeDetail(raw, stationId);
     if (!detail) return;
     detailCache.set(stationId, detail);
     applySingleDetail(stationId, detail);
@@ -321,7 +321,7 @@ function trackSnapshotPromise(promise) {
     pendingSnapshot = null;
     if (!snapshot || typeof snapshot !== 'object') return;
     for (const [id, raw] of Object.entries(snapshot)) {
-      const detail = normalizeDetail(raw);
+      const detail = normalizeDetail(raw, id);
       if (detail) detailCache.set(id, detail);
     }
     const selected = state.selectedId;
@@ -354,11 +354,15 @@ function applySingleDetail(stationId, detail) {
   }
 }
 
-function normalizeDetail(value) {
+function normalizeDetail(value, stationId) {
   if (value == null) return null;
-  if (Array.isArray(value)) return { sockets: value };
-  if (typeof value !== 'object') return null;
-  return value;
+  const detail = Array.isArray(value) ? { sockets: value } : (typeof value === 'object' ? value : null);
+  if (!detail) return null;
+  if (!Array.isArray(detail.hourlyTrend) && stationId) {
+    const station = state.byId.get(stationId);
+    if (station) detail.hourlyTrend = computeHourlyTrend(station);
+  }
+  return detail;
 }
 
 function readUpdatedAt(detail) {
@@ -403,7 +407,7 @@ function subscribeAdapter() {
 function handleAdapterUpdate() {
   detailCache.clear();
   applyOccupancyToStations();
-  callFirst(state.mapView, ['setStations'], state.stations);
+  callFirst(state.mapView, ['setStations'], getVisibleStations());
 
   const stationId = state.selectedId;
   if (stationId) {
@@ -556,6 +560,108 @@ function setupSearch() {
   window.addEventListener('scroll', () => { if (!results.hidden) positionResults(); }, true);
 }
 
+/* ---------------------------------------------------------- 收藏与筛选 */
+
+function loadFavorites() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) {
+      state.favorites = new Set(arr.filter((id) => typeof id === 'string' && state.byId.has(id)));
+    }
+  } catch { /* 隐私模式忽略 */ }
+}
+
+function saveFavorites() {
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify([...state.favorites]));
+  } catch { /* 隐私模式忽略 */ }
+}
+
+function syncFavoritesToStations() {
+  for (const station of state.stations) {
+    station.favorite = state.favorites.has(station.id);
+  }
+}
+
+function toggleFavorite(stationId) {
+  if (!stationId || !state.byId.has(stationId)) return;
+  if (state.favorites.has(stationId)) state.favorites.delete(stationId);
+  else state.favorites.add(stationId);
+  saveFavorites();
+  syncFavoritesToStations();
+  updateFilterCounts();
+  callFirst(state.mapView, ['setStations'], getVisibleStations());
+  if (state.resultsEl && !state.resultsEl.hidden) {
+    renderResults(state.query, { preserveActive: true });
+  }
+}
+
+function matchesFilter(station, filter = state.filter) {
+  if (!station) return false;
+  switch (filter) {
+    case 'bike': return station.type === 'bike';
+    case 'car': return station.type === 'car';
+    case 'cabinet': return (Number(station.cabinets) || 0) > 0;
+    case 'fav': return state.favorites.has(station.id);
+    default: return true;
+  }
+}
+
+function getVisibleStations() {
+  if (state.filter === 'all') return state.stations;
+  return state.stations.filter((station) => matchesFilter(station, state.filter));
+}
+
+function updateFilterCounts() {
+  const bar = document.getElementById('filter-bar');
+  if (!bar) return;
+  const counts = {
+    all: state.stations.length,
+    bike: state.stations.filter((s) => s.type === 'bike').length,
+    car: state.stations.filter((s) => s.type === 'car').length,
+    cabinet: state.stations.filter((s) => (Number(s.cabinets) || 0) > 0).length,
+    fav: state.favorites.size,
+  };
+  for (const [key, val] of Object.entries(counts)) {
+    const el = bar.querySelector(`[data-count="${key}"]`);
+    if (el) el.textContent = String(val);
+  }
+}
+
+function setFilter(next, opts = {}) {
+  state.filter = next || 'all';
+  const bar = document.getElementById('filter-bar');
+  if (bar) {
+    bar.querySelectorAll('.filter-chip').forEach((btn) => {
+      const active = btn.dataset.filter === state.filter;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+  }
+  const visible = getVisibleStations();
+  callFirst(state.mapView, ['setStations'], visible);
+  if (!opts.silentSelect && state.selectedId && !visible.some((s) => s.id === state.selectedId)) {
+    if (state.panel?.isOpen) state.panel.close();
+  }
+  if (state.resultsEl && !state.resultsEl.hidden) {
+    renderResults(state.query);
+  }
+}
+
+function setupFilters() {
+  const bar = document.getElementById('filter-bar');
+  if (!bar) return;
+  updateFilterCounts();
+  bar.addEventListener('click', (event) => {
+    const chip = event.target.closest('.filter-chip[data-filter]');
+    if (!chip) return;
+    const next = chip.dataset.filter || 'all';
+    setFilter(next === state.filter && next !== 'all' ? 'all' : next);
+  });
+}
+
 function openResults(query) {
   state.query = query;
   state.activeIndex = 0;
@@ -569,14 +675,26 @@ function renderResults(query, options = {}) {
 
   if (!options.preserveActive) state.activeIndex = 0;
   const q = String(query || '').trim().toLowerCase();
-  const matches = state.stations.filter((station) => {
+  const basePool = q ? state.stations : getVisibleStations();
+  const matches = basePool.filter((station) => {
     if (!q) return true;
     const haystack = `${station.name} ${station.id} ${station.note || ''} ${TYPE_TEXT[station.type] || ''}`.toLowerCase();
     return haystack.includes(q);
   });
+
+  // 无关键词且处于全部/非仅收藏筛选时，把已收藏站点排在最前（常用收藏组）
+  let orderedStations = matches;
+  if (!q && state.filter !== 'fav' && state.favorites.size > 0) {
+    const favList = matches
+      .filter((s) => state.favorites.has(s.id))
+      .map((s) => ({ ...s, _group: '★ 常用收藏' }));
+    const restList = matches.filter((s) => !state.favorites.has(s.id));
+    orderedStations = favList.concat(restList);
+  }
+
   // 楼宇结果：仅在有关键词时追加，最多 6 条，排在站点之后
   const buildingMatches = q ? searchBuildings(q, 6) : [];
-  state.results = matches.concat(buildingMatches);
+  state.results = orderedStations.concat(buildingMatches);
 
   const listMode = resultsEl.tagName === 'UL';
   const groupTag = listMode ? 'li' : 'div';
@@ -584,16 +702,19 @@ function renderResults(query, options = {}) {
   const itemAttrs = listMode ? 'tabindex="-1"' : 'type="button"';
 
   if (!state.results.length) {
-    resultsEl.innerHTML = `<${groupTag} class="search-empty" role="presentation">没有找到与「${escapeHtml(query)}」匹配的站点或楼宇</${groupTag}>`;
+    const emptyMsg = !q && state.filter === 'fav'
+      ? '尚未收藏常用站点，点击站点详情右上角的 ★ 即可收藏'
+      : `没有找到与「${escapeHtml(query)}」匹配的站点或楼宇`;
+    resultsEl.innerHTML = `<${groupTag} class="search-empty" role="presentation">${emptyMsg}</${groupTag}>`;
     state.activeIndex = -1;
   } else {
     if (state.activeIndex >= state.results.length) state.activeIndex = state.results.length - 1;
-    let previousType = null;
+    let previousGroup = null;
     let html = '';
     state.results.forEach((station, index) => {
       if (station.kind === 'building') {
-        if (previousType !== '__building') {
-          previousType = '__building';
+        if (previousGroup !== '__building') {
+          previousGroup = '__building';
           html += `<${groupTag} class="search-group" role="presentation">楼宇</${groupTag}>`;
         }
         html += `
@@ -606,17 +727,23 @@ function renderResults(query, options = {}) {
         </${itemTag}>`;
         return;
       }
-      if (station.type !== previousType) {
-        previousType = station.type;
-        html += `<${groupTag} class="search-group" role="presentation">${escapeHtml(TYPE_TEXT[station.type] || '充电站')}</${groupTag}>`;
+      const groupName = station._group || TYPE_TEXT[station.type] || '充电站';
+      if (groupName !== previousGroup) {
+        previousGroup = groupName;
+        html += `<${groupTag} class="search-group" role="presentation">${escapeHtml(groupName)}</${groupTag}>`;
       }
       const live = liveInfoFor(station);
-      const meta = `${TYPE_TEXT[station.type] || '充电站'}${station.sockets > 0 ? ` · ${station.sockets} 口` : ' · 插口待采集'}`;
+      const socketLabel = station.sockets > 0
+        ? (station.socketsApprox ? ` · 约 ${station.sockets} 口` : ` · ${station.sockets} 口`)
+        : ' · 插口待采集';
+      const cabinetLabel = (Number(station.cabinets) || 0) > 0 ? ` · ${station.cabinets} 柜` : '';
+      const meta = `${TYPE_TEXT[station.type] || '充电站'}${socketLabel}${cabinetLabel}`;
+      const favStar = state.favorites.has(station.id) ? '<span class="search-fav-star" aria-hidden="true">★</span>' : '';
       html += `
         <${itemTag} ${itemAttrs} class="search-item" role="option" id="search-option-${index}"
           data-id="${escapeHtml(station.id)}" data-index="${index}" aria-selected="false">
           <span class="search-item-main">
-            <span class="search-item-name">${highlightMatch(station.name, q)}</span>
+            <span class="search-item-name">${favStar}${highlightMatch(station.name, q)}</span>
             <span class="search-item-meta">${escapeHtml(meta)}</span>
           </span>
           <span class="search-item-live live-${live.tone}">

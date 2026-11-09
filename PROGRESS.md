@@ -52,18 +52,30 @@
     MapView 新增 `focusPoint(lon,lat)`）
   - 新增 `docs/real-data.md`：真实数据获取路线
 
+- **2026-11-09 交互增强 + 数据补全 + 真实适配器落盘**
+  - **数据补全**：`data/stations.json` 与 `scripts/build_stations.js` 为其余 6 处电动汽车站点补齐预估插口数并标记 `socketsApprox: true`（体育馆 8、大通学生中心 6、34教 6、37教 6、55教 6、南门内侧 8），连同 1895 行政楼（14）和桃园东（7）共计 **61 个汽车充电位**；地图悬浮提示与详情面板对 `socketsApprox` 显示「约 N 个插口（预估）」
+  - **分类与收藏筛选栏（`#filter-bar`）**：支持「全部 26」「自行车 18」「汽车 8」「含锂电柜 5」「★ 收藏 N」一键筛选，地图图钉、顶部统计指标（站点/空闲/占用）与搜索下拉列表实时联动
+  - **站点收藏夹（`localStorage`）**：详情面板头部新增 `★ 收藏 / ☆ 收藏` 按钮（持久化至 `jindianyun:favorites`），地图为已收藏站点绘制金色星标角标，搜索框聚焦时置顶展示「★ 常用收藏」分组
+  - **地图浮动缩放/复位控件（`.map-controls`）**：右下角新增放大（`+`）、缩小（`−`）、全校视野复位（`⌂`）按钮；优化 `focusStation` 在宽屏下考虑右侧面板宽度偏置并将缩放倍率调整为 `1.65`，保留周边楼宇参照；调整比例尺/署名位置避免与控件重叠
+  - **24 小时繁忙度趋势与错峰建议**：`js/mock-adapter.js` 导出 `computeHourlyTrend(station, now)`，`js/panel.js` 渲染 24 小时柱状图（高亮当前小时）并自动计算未来 12 小时内空闲率最高的 2 小时错峰充电窗口；支持在插口列表中展示估算 `SOC` 百分比
+  - **真实数据 HTTP 适配器与代理脚手架**：新增 `js/http-adapter.js`（单飞请求、超时中断、页面不可见暂停、指数退避、Stale-if-Error、混合回退 `fallbackAdapter`），支持通过 `?adapter=http` 或 `?endpoint=...` 启用；新增 `scripts/cqt_proxy.mjs` 与 `.env.example`（零依赖 Node.js 18+ 本地代理，含 60s 缓存与 `--mock` 联调模式）
+  - **文档与预览图同步**：更新 `README.md`、`docs/real-data.md`，并通过 Ego Lite 浏览器实测生成 `docs/screenshots/` 四张桌面/移动端浅色与深色模式截图
+
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）
-- [x] 19+9 个点位坐标（按命名建筑定位）
+- [x] 18+8 个点位坐标（按命名建筑 + 北洋维基校正）
 - [x] 底图渲染组件（Canvas 读取 basemap.json）
 - [x] 静态站骨架（无构建步骤，直接 GitHub Pages 可跑）
-- [x] 模拟数据适配器（占用/空闲/预计结束时间，随时间演化）
-- [x] 点位详情面板
-- [x] README / LICENSE
+- [x] 模拟数据适配器（占用/空闲/预计结束时间/24h 趋势，随时间演化）
+- [x] 点位详情面板（含收藏、24h 趋势与错峰建议、插口级倒计时）
+- [x] 分类筛选栏与地图缩放/复位浮动控件
+- [x] 电动汽车 6 站预估插口数补齐（标记 `socketsApprox: true`）
+- [x] 真实数据 HTTP 适配器（`js/http-adapter.js`）与本地代理脚手架（`scripts/cqt_proxy.mjs`）
+- [x] README / LICENSE / 预览截图
 - [x] **发布到 GitHub**：<https://github.com/xiaomeng0831/jindianyun>
   - 线上站点：<https://xiaomeng0831.github.io/jindianyun/>（GitHub Pages，main / root）
   - 推送走 SSH（`~/.ssh/id_ed25519` 已加入账号，标题 `MacBook Pro (Claude Code)`）
-- [ ] 后续改进：电动汽车 9 站插口数待采集；锂电柜位置待核实；真实数据适配器
+- [ ] 后续改进：实地核实 6 处汽车站精确快/慢充配比与 5 处锂电柜坐标；接入优易充汽车桩实时接口
 
 ## 关键决策与坑
 - **数据源**：模拟数据 + 可插拔适配器（用户选定）。真实接口（常青藤智能充电 m.sgdq123.com:8601）只留接口位，不实现。
