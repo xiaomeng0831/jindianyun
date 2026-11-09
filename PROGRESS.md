@@ -60,7 +60,9 @@
 - [x] 模拟数据适配器（占用/空闲/预计结束时间，随时间演化）
 - [x] 点位详情面板
 - [x] README / LICENSE
-- [ ] **发布到 GitHub**：本机没有 `gh` CLI，需用户提供仓库地址或安装 gh
+- [x] **发布到 GitHub**：<https://github.com/xiaomeng0831/jindianyun>
+  - 线上站点：<https://xiaomeng0831.github.io/jindianyun/>（GitHub Pages，main / root）
+  - 推送走 SSH（`~/.ssh/id_ed25519` 已加入账号，标题 `MacBook Pro (Claude Code)`）
 - [ ] 后续改进：电动汽车 9 站插口数待采集；锂电柜位置待核实；真实数据适配器
 
 ## 关键决策与坑
