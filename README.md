@@ -173,7 +173,7 @@ data/stations.json               26 个站点静态信息
 
 ## 参与贡献
 
-欢迎提交 Issue 与 Pull Request。请遵循以下约定：
+欢迎提交 Issue 与 Pull Request。完整的开发说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。核心约定：
 
 - **保持零依赖**：不要引入 npm 包、框架、CDN 资源或构建步骤；
 - **原生 ES Modules**：新增模块使用 `import` / `export`，保证纯浏览器可直接运行；

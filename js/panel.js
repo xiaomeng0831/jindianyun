@@ -36,6 +36,7 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 11a8.5 8.5 0 1 0-2.6 6.1M20.5 4.5V11h-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   cabinet: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="7" width="15" height="10" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M21 10.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 10v4M11 10v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/></svg>',
   plug: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2 4.5 14H11l-1 8 8.5-12H12l1-8Z" fill="currentColor"/></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 3.6 2.6 5.3 5.9.85-4.25 4.14 1 5.86L12 17l-5.25 2.75 1-5.86L3.5 9.75l5.9-.85L12 3.6Z" fill="currentColor" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
 };
 
 /** 把任意状态写法归一为 charging / idle / fault / unknown */
@@ -174,6 +175,7 @@ export function normalizeSockets(station, detail) {
         no: extractSocketNo(item, index),
         status: normalizeStatus(status),
         endTime: extractEndTime(item),
+        soc: typeof item.soc === 'number' && Number.isFinite(item.soc) ? Math.round(item.soc) : null,
       });
     });
   } else if (raw && typeof raw === 'object') {
@@ -187,6 +189,7 @@ export function normalizeSockets(station, detail) {
         no: Number(key),
         status: normalizeStatus(typeof value === 'object' && value ? value.status : value),
         endTime: typeof value === 'object' && value ? extractEndTime(value) : null,
+        soc: typeof value === 'object' && value && typeof value.soc === 'number' ? Math.round(value.soc) : null,
       });
     });
     if (!entries.length) {
@@ -222,6 +225,8 @@ export class StationPanel {
     this.onClose = options.onClose || null;
     this.onRefresh = options.onRefresh || null;
     this.onSocketSelect = options.onSocketSelect || null;
+    this.onToggleFavorite = options.onToggleFavorite || null;
+    this.isFavorite = options.isFavorite || null;
 
     this._station = null;
     this._detail = null;
@@ -266,7 +271,10 @@ export class StationPanel {
           </div>
           <p class="station-sub"></p>
         </div>
-        <button type="button" class="icon-btn panel-close" data-action="close" aria-label="关闭详情">${ICONS.close}</button>
+        <div class="panel-actions">
+          <button type="button" class="icon-btn favorite-btn" data-action="favorite" aria-label="收藏常用站点" aria-pressed="false" title="收藏常用站点">${ICONS.star}</button>
+          <button type="button" class="icon-btn panel-close" data-action="close" aria-label="关闭详情">${ICONS.close}</button>
+        </div>
       </div>
       <div class="panel-body">
         <section class="stat-row" aria-label="插口统计"></section>
@@ -281,6 +289,19 @@ export class StationPanel {
         <section class="section cabinets-section" hidden>
           <div class="section-head"><h3>锂电柜</h3><span class="section-hint"></span></div>
           <div class="cabinet-list"></div>
+        </section>
+        <section class="section trend-section" hidden>
+          <div class="section-head">
+            <h3>24 小时占用趋势</h3>
+            <span class="section-hint trend-hint"></span>
+          </div>
+          <div class="trend-card">
+            <div class="trend-bars" role="img" aria-label="24 小时预计占用率柱状图"></div>
+            <div class="trend-axis" aria-hidden="true">
+              <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+            </div>
+            <p class="trend-advice"></p>
+          </div>
         </section>
         <p class="station-note" hidden></p>
       </div>
@@ -303,6 +324,7 @@ export class StationPanel {
       typeBadge: q('.type-badge'),
       name: q('.station-name'),
       sub: q('.station-sub'),
+      favBtn: q('.favorite-btn'),
       body: q('.panel-body'),
       statRow: q('.stat-row'),
       socketsSection: q('.sockets-section'),
@@ -312,6 +334,10 @@ export class StationPanel {
       cabinetsSection: q('.cabinets-section'),
       cabinetHint: q('.cabinets-section .section-hint'),
       cabinetList: q('.cabinet-list'),
+      trendSection: q('.trend-section'),
+      trendHint: q('.trend-hint'),
+      trendBars: q('.trend-bars'),
+      trendAdvice: q('.trend-advice'),
       note: q('.station-note'),
       liveText: q('.live-text'),
       updated: q('.updated'),
@@ -443,16 +469,35 @@ export class StationPanel {
     this._sockets = sockets;
 
     const subParts = [];
-    subParts.push(sockets.length ? `${sockets.length} 个插口` : '插口数待采集');
+    if (sockets.length) {
+      subParts.push(station.socketsApprox ? `约 ${sockets.length} 个插口（预估）` : `${sockets.length} 个插口`);
+    } else {
+      subParts.push('插口数待采集');
+    }
     const cabinetCount = this._getCabinetCount();
     if (cabinetCount) subParts.push(`${cabinetCount} 组锂电柜`);
     dom.sub.textContent = subParts.join(' · ');
 
+    this._renderFavorite();
     this._renderStats(sockets);
     this._renderSockets(sockets);
     this._renderCabinets();
+    this._renderTrend();
     this._renderNote();
     this._renderFooter();
+  }
+
+  _renderFavorite() {
+    const dom = this._dom;
+    if (!dom?.favBtn || !this._station) return;
+    const fav = typeof this.isFavorite === 'function'
+      ? Boolean(this.isFavorite(this._station.id))
+      : Boolean(this._station.favorite);
+    dom.favBtn.classList.toggle('is-active', fav);
+    dom.favBtn.setAttribute('aria-pressed', String(fav));
+    const label = fav ? '取消收藏该站点' : '收藏常用站点';
+    dom.favBtn.setAttribute('aria-label', label);
+    dom.favBtn.title = label;
   }
 
   _renderStats(sockets) {
@@ -534,9 +579,10 @@ export class StationPanel {
     let subtitle;
     if (socket.status === 'charging') {
       title = `${socket.no} 号插口 · 充电中`;
+      const socPrefix = socket.soc != null ? `当前约 ${socket.soc}% · ` : '';
       subtitle = socket.endTime
-        ? `预计 ${formatClock(socket.endTime)} 结束 · 剩余 ${formatRemaining(socket.endTime - Date.now())}`
-        : '预计结束时间待同步';
+        ? `${socPrefix}预计 ${formatClock(socket.endTime)} 结束 · 剩余 ${formatRemaining(socket.endTime - Date.now())}`
+        : `${socPrefix}预计结束时间待同步`;
     } else if (socket.status === 'idle') {
       title = `${socket.no} 号插口 · 空闲`;
       subtitle = '当前可用，可立即充电';
@@ -637,15 +683,55 @@ export class StationPanel {
     return String(status);
   }
 
+  _renderTrend() {
+    const dom = this._dom;
+    if (!dom?.trendSection) return;
+    const trend = Array.isArray(this._detail?.hourlyTrend) && this._detail.hourlyTrend.length === 24
+      ? this._detail.hourlyTrend
+      : null;
+    if (!trend) {
+      dom.trendSection.hidden = true;
+      return;
+    }
+
+    dom.trendSection.hidden = false;
+    const nowHour = new Date().getHours();
+    const currentRatio = Math.round((trend[nowHour] || 0) * 100);
+    dom.trendHint.textContent = `当前 ${pad2(nowHour)}:00 · 预计 ${currentRatio}%`;
+
+    dom.trendBars.innerHTML = trend.map((ratio, hour) => {
+      const pct = Math.max(8, Math.min(100, Math.round(ratio * 100)));
+      const level = ratio >= 0.85 ? 'high' : ratio >= 0.5 ? 'mid' : 'low';
+      const isNow = hour === nowHour;
+      return `
+        <div class="trend-bar-wrap${isNow ? ' is-now' : ''}" title="${pad2(hour)}:00 预计占用约 ${Math.round(ratio * 100)}%">
+          <span class="trend-bar is-${level}" style="height:${pct}%"></span>
+        </div>`;
+    }).join('');
+
+    // 计算 07:00–22:00 活跃时段中预计占用最低的连续 2 小时错峰窗口
+    let bestHour = 7;
+    let bestAvg = Infinity;
+    for (let h = 7; h <= 20; h += 1) {
+      const avg = (trend[h] + trend[h + 1]) / 2;
+      if (avg < bestAvg) {
+        bestAvg = avg;
+        bestHour = h;
+      }
+    }
+    dom.trendAdvice.textContent = `错峰建议：${pad2(bestHour)}:00–${pad2(bestHour + 2)}:00 空闲较多（预计占用约 ${Math.round(bestAvg * 100)}%）`;
+  }
+
   _renderNote() {
     const dom = this._dom;
     const note = String(this._station?.note || '').trim();
-    const technical = /OSM|multipolygon|relation|两栋同名|插口数|调整/.test(note);
     const cleaned = note
+      .replace(/OSM\s*multipolygon\s*relation[，,]\s*已并入底图/gi, '')
+      .replace(/OSM\s*校门节点「[^」]*」（[^）]*）[；;，,\s]*/g, '')
       .replace(/；?\s*电动汽车站点，插口数待采集。?/g, '')
       .replace(/[，,；;]?\s*含锂电柜\s*\d*\s*组?/g, '')
       .trim();
-    if (!note || technical || !cleaned) {
+    if (!note || !cleaned) {
       dom.note.hidden = true;
       dom.note.textContent = '';
       return;
@@ -679,7 +765,8 @@ export class StationPanel {
       const socket = this._sockets.find((item) => item.no === this._selectedNo);
       if (socket?.status === 'charging' && socket.endTime) {
         const sub = dom.socketDetail.querySelector('.socket-detail-sub');
-        if (sub) sub.textContent = `预计 ${formatClock(socket.endTime)} 结束 · 剩余 ${formatRemaining(socket.endTime - Date.now())}`;
+        const socPrefix = socket.soc != null ? `当前约 ${socket.soc}% · ` : '';
+        if (sub) sub.textContent = `${socPrefix}预计 ${formatClock(socket.endTime)} 结束 · 剩余 ${formatRemaining(socket.endTime - Date.now())}`;
       }
     }
   }
@@ -705,6 +792,13 @@ export class StationPanel {
       const { action } = actionEl.dataset;
       if (action === 'close') {
         this.close();
+        return;
+      }
+      if (action === 'favorite') {
+        if (this._station && this.onToggleFavorite) {
+          this.onToggleFavorite(this._station.id);
+          this._renderFavorite();
+        }
         return;
       }
       if (action === 'refresh') {

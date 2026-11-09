@@ -17,12 +17,14 @@
 
 import { MapView } from './map.js';
 import { loadBasemap } from './basemap.js';
-import { createMockAdapter } from './mock-adapter.js';
+import { createMockAdapter, computeHourlyTrend } from './mock-adapter.js';
+import { createHttpAdapter } from './http-adapter.js';
 import { createStationPanel, summarizeStation, escapeHtml } from './panel.js';
 
 const STATIONS_URL = new URL('../data/stations.json', import.meta.url);
 const BASEMAP_URL = new URL('../data/basemap.json', import.meta.url);
 const TYPE_TEXT = { bike: '电动自行车', car: '电动汽车' };
+const FAVORITES_KEY = 'jindianyun:favorites';
 
 const state = {
   stations: [],
@@ -38,6 +40,8 @@ const state = {
   searchInput: null,
   refreshing: false,
   buildings: [],
+  filter: 'all',
+  favorites: new Set(),
 };
 
 /* ---------------------------------------------------------------- 启动 */
@@ -61,6 +65,8 @@ async function boot() {
   state.stations = stations;
   state.byId = new Map(stations.map((station) => [station.id, station]));
   state.buildings = buildBuildingIndex(basemap);
+  loadFavorites();
+  syncFavoritesToStations();
 
   state.adapter = createAdapter(stations);
   applyOccupancyToStations();
@@ -68,15 +74,23 @@ async function boot() {
   state.panel = createStationPanel(panelRoot, {
     onClose: handlePanelClose,
     onRefresh: handleRefresh,
+    onToggleFavorite: toggleFavorite,
+    isFavorite: (id) => state.favorites.has(id),
   });
 
   try {
-    state.mapView = createMap(canvas, basemap, stations);
+    state.mapView = createMap(canvas, basemap, getVisibleStations());
+    state.mapView.bindControls({
+      zoomIn: '#map-zoom-in',
+      zoomOut: '#map-zoom-out',
+      reset: '#map-reset',
+    });
   } catch (error) {
     console.error('[津电云] 地图初始化失败', error);
     showMapNotice(error);
   }
 
+  setupFilters();
   setupSearch();
   populateLegend();
   subscribeAdapter();
@@ -152,6 +166,11 @@ function selectStation(stationLike, options = {}) {
     return;
   }
 
+  // 若选中的站点不在当前筛选范围内，自动切回「全部」以确保图钉可见
+  if (state.filter !== 'all' && !matchesFilter(station, state.filter)) {
+    setFilter('all', { silentSelect: true });
+  }
+
   state.selectedId = station.id;
   const detail = readDetail(station.id);
   state.panel.open(station, detail, { updatedAt: readUpdatedAt(detail) });
@@ -185,22 +204,40 @@ function handlePanelClose() {
 /* ------------------------------------------------------------ 适配器桥接 */
 
 function createAdapter(stations) {
+  let mock = null;
   const attempts = [
     () => createMockAdapter(stations),
     () => createMockAdapter({ stations }),
     () => createMockAdapter(),
   ];
-  let fallback = null;
 
   for (const attempt of attempts) {
     try {
       const adapter = attempt();
       if (!adapter || typeof adapter !== 'object') continue;
-      if (probeAdapter(adapter)) return adapter;
-      if (!fallback) fallback = adapter;
+      if (probeAdapter(adapter)) {
+        mock = adapter;
+        break;
+      }
+      if (!mock) mock = adapter;
     } catch { /* 尝试下一种签名 */ }
   }
-  return fallback || createFallbackAdapter(stations);
+  const fallback = mock || createFallbackAdapter(stations);
+
+  // 支持通过 URL 参数 (?adapter=http 或 ?endpoint=...) 或全局配置切换到 HTTP 实时适配器
+  try {
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('adapter') || window.JINDIANYUN_CONFIG?.adapter;
+    const endpoint = params.get('endpoint') || window.JINDIANYUN_CONFIG?.endpoint;
+    if (mode === 'http' || endpoint) {
+      return createHttpAdapter(stations, {
+        endpoint: endpoint || 'http://localhost:8787/api/charging/status',
+        fallbackAdapter: fallback,
+      });
+    }
+  } catch { /* 忽略 URL 解析异常 */ }
+
+  return fallback;
 }
 
 function probeAdapter(adapter) {

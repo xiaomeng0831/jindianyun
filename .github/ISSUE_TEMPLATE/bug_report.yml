@@ -1,0 +1,43 @@
+name: Bug 报告
+description: 报告一个可复现的问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量填写完整，方便定位问题。
+        **注意**：本项目当前使用模拟数据，插口状态不对属于预期行为；真实数据相关问题请说明数据来源。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述
+      description: 发生了什么？你期望发生什么？
+      placeholder: 点击「格园1斋」后详情面板没有打开……
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 https://xiaomeng0831.github.io/jindianyun/
+        2. 搜索「格园」
+        3. 点击结果
+        4. 看到……
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      description: 浏览器与版本、操作系统、设备
+      placeholder: Chrome 131 / macOS 15 / MacBook Pro
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: 控制台报错（可选）
+      description: 按 F12 打开开发者工具 → Console，把红色报错贴在这里
+      render: shell
