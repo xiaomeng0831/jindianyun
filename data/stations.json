@@ -206,6 +206,7 @@
     "lon": 117.313842,
     "lat": 38.999887,
     "approx": false,
+    "socketsApprox": false,
     "note": "快充 8 + 慢充 6（北洋维基 2024-04）"
   },
   {
@@ -217,72 +218,79 @@
     "lon": 117.306792,
     "lat": 38.995153,
     "approx": false,
+    "socketsApprox": false,
     "note": "快充 4 + 慢充 3（北洋维基 2024-04）"
   },
   {
     "type": "car",
     "id": "car-gymnasium",
     "name": "体育馆",
-    "sockets": 0,
+    "sockets": 8,
     "cabinets": 0,
     "lon": 117.313756,
     "lat": 39.001617,
     "approx": false,
-    "note": "电动汽车站点，插口数待采集"
+    "socketsApprox": true,
+    "note": "快充 4 + 慢充 4（预估车位，待现场核实）"
   },
   {
     "type": "car",
     "id": "car-datong",
     "name": "大活中心(大通学生中心)",
-    "sockets": 0,
+    "sockets": 6,
     "cabinets": 0,
     "lon": 117.304173,
     "lat": 38.996739,
     "approx": false,
-    "note": "电动汽车站点，插口数待采集"
+    "socketsApprox": true,
+    "note": "快充 2 + 慢充 4（预估车位，待现场核实）"
   },
   {
     "type": "car",
     "id": "car-jiaoxue-34",
     "name": "34教北",
-    "sockets": 0,
+    "sockets": 6,
     "cabinets": 0,
     "lon": 117.314801,
     "lat": 38.990602,
     "approx": false,
-    "note": "34教北侧偏东（与自行车站分列）；电动汽车站点，插口数待采集"
+    "socketsApprox": true,
+    "note": "34教北侧偏东（与自行车站分列）；快充 2 + 慢充 4（预估车位，待现场核实）"
   },
   {
     "type": "car",
     "id": "car-jiaoxue-37",
     "name": "37教南",
-    "sockets": 0,
+    "sockets": 6,
     "cabinets": 0,
     "lon": 117.311853,
     "lat": 38.992707,
     "approx": false,
-    "note": "电动汽车站点，插口数待采集"
+    "socketsApprox": true,
+    "note": "快充 2 + 慢充 4（预估车位，待现场核实）"
   },
   {
     "type": "car",
     "id": "car-jiaoxue-55",
     "name": "55教北",
-    "sockets": 0,
+    "sockets": 6,
     "cabinets": 0,
     "lon": 117.307684,
     "lat": 38.999439,
     "approx": false,
-    "note": "电动汽车站点，插口数待采集"
+    "socketsApprox": true,
+    "note": "快充 2 + 慢充 4（预估车位，待现场核实）"
   },
   {
     "type": "car",
     "id": "car-south-gate",
     "name": "南门",
-    "sockets": 0,
+    "sockets": 8,
     "cabinets": 0,
     "lon": 117.311285,
     "lat": 38.98909,
     "approx": false,
-    "note": "OSM 校门节点「天津大学新校南门」（同砚路）"
+    "socketsApprox": true,
+    "note": "OSM 校门节点「天津大学新校南门」（同砚路）；快充 4 + 慢充 4（预估车位，待现场核实）"
   }
 ]

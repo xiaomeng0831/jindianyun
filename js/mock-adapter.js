@@ -71,6 +71,25 @@ function curveFor(station) {
   return CURVES.dorm;
 }
 
+/**
+ * 计算某站点全天 24 小时（0–23 点）的预计占用率曲线（0–1）。
+ * @param {object} station data/stations.json 中的一条
+ * @param {number} [now=Date.now()] 毫秒时间戳
+ * @returns {number[]} 长度为 24 的占用率数组
+ */
+export function computeHourlyTrend(station, now = Date.now()) {
+  const date = new Date(now);
+  const curve = curveFor(station);
+  const weekend = date.getDay() === 0 || date.getDay() === 6;
+  const weekendFactor = weekend ? (curve === CURVES.dorm ? 1.05 : 0.8) : 1;
+  const bias = 0.85 + mulberry32(hashString(String(station?.id || '')))() * 0.3;
+
+  return curve.map((base) => {
+    const val = Math.min(0.98, Math.max(0.02, base * weekendFactor * bias));
+    return Math.round(val * 100) / 100;
+  });
+}
+
 /* ------------------------------------------------------------ 状态计算 */
 
 /**
@@ -141,7 +160,8 @@ function computeDetail(station, now) {
     });
   }
 
-  return { stationId: station.id, updatedAt: now, sockets, cabinets };
+  const hourlyTrend = computeHourlyTrend(station, now);
+  return { stationId: station.id, updatedAt: now, sockets, cabinets, hourlyTrend };
 }
 
 /* ------------------------------------------------------------ 适配器 */

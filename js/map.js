@@ -669,6 +669,20 @@ export class MapView {
     ctx.fillStyle = theme.pinText;
     ctx.fill();
 
+    /* 收藏站点右上角星标徽章 */
+    if (station.favorite) {
+      const bx = r * 0.78;
+      const by = headY - r * 0.78;
+      const br = Math.max(4.2, r * 0.52);
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fill();
+      ctx.strokeStyle = theme.bg || '#ffffff';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 
@@ -829,15 +843,20 @@ export class MapView {
     el.innerHTML = '';
 
     const name = document.createElement('div');
-    name.textContent = station.name || '未命名站点';
+    const favPrefix = station.favorite ? '★ ' : '';
+    name.textContent = `${favPrefix}${station.name || '未命名站点'}`;
     name.style.cssText = 'font-weight:650;font-size:13px;letter-spacing:0.01em;line-height:1.35;';
     el.appendChild(name);
 
     const typeLabel = station.type === 'car' ? '电动汽车' : '电动自行车';
     const meta = document.createElement('div');
-    meta.textContent = stats.sockets > 0
-      ? `${typeLabel} · ${stats.sockets} 个插口`
-      : `${typeLabel} · 插口数待采集`;
+    if (stats.sockets > 0) {
+      meta.textContent = station.socketsApprox
+        ? `${typeLabel} · 约 ${stats.sockets} 个插口（预估）`
+        : `${typeLabel} · ${stats.sockets} 个插口`;
+    } else {
+      meta.textContent = `${typeLabel} · 插口数待采集`;
+    }
     meta.style.cssText = `margin-top:2px;font-size:11px;color:${theme.tooltipMuted};`;
     el.appendChild(meta);
 

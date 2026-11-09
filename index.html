@@ -41,8 +41,38 @@
     </form>
   </header>
 
+  <nav id="filter-bar" class="filter-bar" aria-label="站点筛选">
+    <button type="button" class="filter-chip is-active" data-filter="all" aria-pressed="true">
+      <span>全部</span><em class="chip-count" data-count="all">26</em>
+    </button>
+    <button type="button" class="filter-chip" data-filter="bike" aria-pressed="false">
+      <i class="chip-dot is-bike" aria-hidden="true"></i><span>自行车</span><em class="chip-count" data-count="bike">18</em>
+    </button>
+    <button type="button" class="filter-chip" data-filter="car" aria-pressed="false">
+      <i class="chip-dot is-car" aria-hidden="true"></i><span>汽车</span><em class="chip-count" data-count="car">8</em>
+    </button>
+    <button type="button" class="filter-chip" data-filter="cabinet" aria-pressed="false">
+      <span>含锂电柜</span><em class="chip-count" data-count="cabinet">5</em>
+    </button>
+    <button type="button" class="filter-chip" data-filter="fav" aria-pressed="false">
+      <span class="chip-star" aria-hidden="true">★</span><span>收藏</span><em class="chip-count" data-count="fav">0</em>
+    </button>
+  </nav>
+
   <main class="app-main">
     <canvas id="map" class="map" role="img" aria-label="天津大学北洋园校区充电桩地图">您的浏览器不支持 Canvas，无法显示地图。</canvas>
+
+    <div class="map-controls" role="group" aria-label="地图视野控制">
+      <button id="map-zoom-in" class="map-ctrl-btn" type="button" aria-label="放大地图" title="放大 (+)">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button id="map-zoom-out" class="map-ctrl-btn" type="button" aria-label="缩小地图" title="缩小 (-)">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button id="map-reset" class="map-ctrl-btn" type="button" aria-label="复位全校区视野" title="复位全校区视野 (Home)">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 9V5a2 2 0 0 1 2-2h4M21 9V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4M21 15v4a2 2 0 0 1-2 2h-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg>
+      </button>
+    </div>
 
     <div id="legend" class="legend" aria-label="图例">
       <span class="legend-item"><span class="legend-dot legend-bike" aria-hidden="true"></span>自行车充电点</span>
