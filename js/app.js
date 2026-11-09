@@ -37,6 +37,7 @@ const state = {
   resultsEl: null,
   searchInput: null,
   refreshing: false,
+  buildings: [],
 };
 
 /* ---------------------------------------------------------------- 启动 */
@@ -59,6 +60,7 @@ async function boot() {
   ]);
   state.stations = stations;
   state.byId = new Map(stations.map((station) => [station.id, station]));
+  state.buildings = buildBuildingIndex(basemap);
 
   state.adapter = createAdapter(stations);
   applyOccupancyToStations();
@@ -483,6 +485,15 @@ function setupSearch() {
     const item = event.target.closest('.search-item');
     if (!item) return;
     const station = state.byId.get(item.dataset.id);
+    if (item.dataset.building) {
+      const building = state.buildings.find((b) => b.name === item.dataset.building);
+      if (!building) return;
+      input.value = '';
+      toggleClear();
+      input.blur();
+      focusBuilding(building);
+      return;
+    }
     if (!station) return;
     input.value = '';
     toggleClear();
@@ -526,21 +537,38 @@ function renderResults(query, options = {}) {
     const haystack = `${station.name} ${station.id} ${station.note || ''} ${TYPE_TEXT[station.type] || ''}`.toLowerCase();
     return haystack.includes(q);
   });
-  state.results = matches;
+  // 楼宇结果：仅在有关键词时追加，最多 6 条，排在站点之后
+  const buildingMatches = q ? searchBuildings(q, 6) : [];
+  state.results = matches.concat(buildingMatches);
 
   const listMode = resultsEl.tagName === 'UL';
   const groupTag = listMode ? 'li' : 'div';
   const itemTag = listMode ? 'li' : 'button';
   const itemAttrs = listMode ? 'tabindex="-1"' : 'type="button"';
 
-  if (!matches.length) {
-    resultsEl.innerHTML = `<${groupTag} class="search-empty" role="presentation">没有找到与「${escapeHtml(query)}」匹配的站点</${groupTag}>`;
+  if (!state.results.length) {
+    resultsEl.innerHTML = `<${groupTag} class="search-empty" role="presentation">没有找到与「${escapeHtml(query)}」匹配的站点或楼宇</${groupTag}>`;
     state.activeIndex = -1;
   } else {
-    if (state.activeIndex >= matches.length) state.activeIndex = matches.length - 1;
+    if (state.activeIndex >= state.results.length) state.activeIndex = state.results.length - 1;
     let previousType = null;
     let html = '';
-    matches.forEach((station, index) => {
+    state.results.forEach((station, index) => {
+      if (station.kind === 'building') {
+        if (previousType !== '__building') {
+          previousType = '__building';
+          html += `<${groupTag} class="search-group" role="presentation">楼宇</${groupTag}>`;
+        }
+        html += `
+        <${itemTag} ${itemAttrs} class="search-item search-item-building" role="option" id="search-option-${index}"
+          data-building="${escapeHtml(station.name)}" data-index="${index}" aria-selected="false">
+          <span class="search-item-main">
+            <span class="search-item-name">${highlightMatch(station.name, q)}</span>
+            <span class="search-item-meta">地图定位</span>
+          </span>
+        </${itemTag}>`;
+        return;
+      }
       if (station.type !== previousType) {
         previousType = station.type;
         html += `<${groupTag} class="search-group" role="presentation">${escapeHtml(TYPE_TEXT[station.type] || '充电站')}</${groupTag}>`;
@@ -566,6 +594,50 @@ function renderResults(query, options = {}) {
   if (input) input.setAttribute('aria-expanded', 'true');
   positionResults();
   syncActiveOption();
+}
+
+/* ------------------------------------------------------------ 楼宇搜索 */
+
+/**
+ * 从底图建筑多边形建立可搜索索引：同名多边形的两翼合并成一个条目，
+ * 位置取所有顶点的平均（近似中心）。
+ */
+function buildBuildingIndex(basemap) {
+  const groups = new Map();
+  for (const b of basemap?.buildings || []) {
+    const name = (b.name || '').trim();
+    if (!name || !Array.isArray(b.poly) || !b.poly.length) continue;
+    let g = groups.get(name);
+    if (!g) { g = { name, lon: 0, lat: 0, n: 0 }; groups.set(name, g); }
+    for (const [lon, lat] of b.poly) { g.lon += lon; g.lat += lat; g.n += 1; }
+  }
+  return [...groups.values()].map((g) => ({ name: g.name, lon: g.lon / g.n, lat: g.lat / g.n }));
+}
+
+/** 按名称子串匹配楼宇，前缀命中优先，最多返回 limit 条。 */
+function searchBuildings(q, limit) {
+  const hits = [];
+  for (const b of state.buildings) {
+    const name = b.name.toLowerCase();
+    const idx = name.indexOf(q);
+    if (idx === -1) continue;
+    hits.push({ b, rank: idx === 0 ? 0 : 1 });
+  }
+  hits.sort((x, y) => x.rank - y.rank || x.b.name.length - y.b.name.length);
+  return hits.slice(0, limit).map(({ b }) => ({ ...b, kind: 'building' }));
+}
+
+/** 把地图移到某栋楼（不打开站点面板）。 */
+function focusBuilding(building) {
+  state.selectedId = null;
+  if (state.panel?.isOpen) state.panel.close();
+  const map = state.mapView;
+  if (map) {
+    callFirst(map, ['focusPoint', 'focus', 'flyTo', 'panTo', 'centerOn'], building.lon, building.lat);
+    callFirst(map, ['setSelected', 'selectStation', 'highlightStation', 'setSelection'], null);
+  }
+  updateHash(null);
+  closeResults();
 }
 
 function handleSearchKeydown(event) {
@@ -595,7 +667,8 @@ function handleSearchKeydown(event) {
     const clearBtn = document.getElementById('search-clear');
     if (clearBtn) clearBtn.hidden = true;
     event.currentTarget.blur();
-    selectStation(station);
+    if (station.kind === 'building') focusBuilding(station);
+    else selectStation(station);
     return;
   }
 

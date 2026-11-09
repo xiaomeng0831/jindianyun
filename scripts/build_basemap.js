@@ -15,6 +15,7 @@ const OUT = path.join(ROOT, 'data', 'basemap.json');
 const raw = JSON.parse(fs.readFileSync(RAW, 'utf8'));
 const bnd = JSON.parse(fs.readFileSync(BND, 'utf8'));
 const ways = raw.elements.filter(e => e.type === 'way');
+const relations = raw.elements.filter(e => e.type === 'relation');
 const boundaryWay = bnd.elements.find(e => e.id === 476603051);
 if (!boundaryWay) throw new Error('boundary way 476603051 not found');
 
@@ -144,8 +145,38 @@ for (const w of ways) {
 
 const out = { bbox, boundary: [boundaryRing], buildings, roads, areas, sports };
 
-// Named buildings mapped as multipolygon relations are absent from a
-// way-only Overpass extract; merge them when data/extra_buildings.json exists.
+// ---- multipolygon relations ----
+// Many named buildings (38/39 教, 平园 21–24 斋, 郑东图书馆 …) and some water
+// bodies are OSM relations, not ways. With `out geom` each member carries its
+// own geometry array; each outer ring becomes its own polygon (a building with
+// two wings yields two same-named polygons, which the renderer de-dupes).
+for (const rel of relations) {
+  const t = rel.tags || {};
+  if (t.type !== 'multipolygon') continue;
+  const outers = (rel.members || []).filter(m => m.role === 'outer' && Array.isArray(m.geometry));
+  for (const m of outers) {
+    const p = poly(m.geometry);
+    if (!p) continue;
+    const k = keyOf(p);
+    if (t.building) {
+      if (seenB.has(k)) continue;
+      seenB.add(k);
+      buildings.push({ name: nameOf(t), poly: p });
+      continue;
+    }
+    let kind = null;
+    if (t.natural === 'water') kind = 'water';
+    else if (t.leisure === 'park') kind = 'park';
+    else if (t.landuse === 'grass') kind = 'grass';
+    else if (t.landuse === 'forest' || t.natural === 'wood') kind = 'forest';
+    if (kind && !seenA.has(k)) {
+      seenA.add(k);
+      areas.push({ kind, poly: p });
+    }
+  }
+}
+
+// Legacy hand-patch file (pre-relation support); kept for older extracts.
 if (fs.existsSync(EXTRA)) {
   const extras = JSON.parse(fs.readFileSync(EXTRA, 'utf8'));
   for (const e of extras) {

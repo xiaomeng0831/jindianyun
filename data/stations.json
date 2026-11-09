@@ -14,12 +14,12 @@
     "type": "bike",
     "id": "bike-liuyuan-a",
     "name": "留园A/留学生公寓",
-    "sockets": 10,
+    "sockets": 20,
     "cabinets": 0,
     "lon": 117.308494,
     "lat": 39.002778,
     "approx": true,
-    "note": "OSM 有两栋同名留学生公寓，取靠留园餐厅的西南栋（推测 A 座）"
+    "note": "2 组充电设备共 20 个车位（北洋维基 2024-04）"
   },
   {
     "type": "bike",
@@ -96,7 +96,7 @@
     "lon": 117.306097,
     "lat": 38.993921,
     "approx": false,
-    "note": "含锂电柜1组"
+    "note": "2 组充电设备共 20 个车位 + 1 组锂电柜 18 个点位"
   },
   {
     "type": "bike",
@@ -147,11 +147,11 @@
     "id": "bike-zhiyuan-25-26",
     "name": "25/26斋",
     "sockets": 20,
-    "cabinets": 1,
+    "cabinets": 3,
     "lon": 117.303814,
     "lat": 38.99356,
     "approx": false,
-    "note": "治园25、26斋两栋之间，含锂电柜1组"
+    "note": "25斋 2 组设备 20 车位 + 2 组锂电柜；26斋 1 组锂电柜 10 点位"
   },
   {
     "type": "bike",
@@ -168,23 +168,23 @@
     "type": "bike",
     "id": "bike-zhuyuan",
     "name": "竹园餐厅临齐园(光伏)",
-    "sockets": 10,
+    "sockets": 20,
     "cabinets": 0,
     "lon": 117.309371,
     "lat": 38.992756,
     "approx": false,
-    "note": "竹园餐厅北侧临齐园，光伏车棚"
+    "note": "2 组充电设备共 20 个车位，光伏车棚（北洋维基 2024-04）"
   },
   {
     "type": "bike",
     "id": "bike-jiaoxue-31",
     "name": "31教北侧",
     "sockets": 19,
-    "cabinets": 1,
+    "cabinets": 2,
     "lon": 117.315907,
     "lat": 38.998351,
     "approx": false,
-    "note": "31教北侧（明德北道），含锂电柜1组"
+    "note": "1 组充电设备共 19 个车位 + 2 组锂电柜"
   },
   {
     "type": "bike",
@@ -198,37 +198,26 @@
     "note": "34教北侧偏西（与汽车站分列）"
   },
   {
-    "type": "bike",
-    "id": "bike-xiuyuan-11",
-    "name": "修园11斋",
-    "sockets": 11,
-    "cabinets": 0,
-    "lon": 117.31027,
-    "lat": 38.995384,
-    "approx": false,
-    "note": "插口数 11（由 10 调整，使自行车插口合计 220）"
-  },
-  {
     "type": "car",
     "id": "car-1895",
     "name": "1895行政楼北侧",
-    "sockets": 0,
+    "sockets": 14,
     "cabinets": 0,
     "lon": 117.313842,
     "lat": 38.999887,
     "approx": false,
-    "note": "电动汽车站点，插口数待采集"
+    "note": "快充 8 + 慢充 6（北洋维基 2024-04）"
   },
   {
     "type": "car",
     "id": "car-taoyuan-east",
     "name": "桃园餐厅东侧",
-    "sockets": 0,
+    "sockets": 7,
     "cabinets": 0,
     "lon": 117.306792,
     "lat": 38.995153,
     "approx": false,
-    "note": "电动汽车站点，插口数待采集"
+    "note": "快充 4 + 慢充 3（北洋维基 2024-04）"
   },
   {
     "type": "car",
@@ -295,16 +284,5 @@
     "lat": 38.98909,
     "approx": false,
     "note": "OSM 校门节点「天津大学新校南门」（同砚路）"
-  },
-  {
-    "type": "car",
-    "id": "car-library",
-    "name": "图书馆/郑东图书馆",
-    "sockets": 0,
-    "cabinets": 0,
-    "lon": 117.307616,
-    "lat": 38.996537,
-    "approx": false,
-    "note": "郑东图书馆为 OSM multipolygon relation，已并入底图"
   }
 ]

@@ -250,6 +250,20 @@ export class MapView {
     if (this.selectedId === id) this._showTooltipForStation(st);
   }
 
+  /** 缩放并平移到任意经纬度（楼宇搜索定位用）。 */
+  focusPoint(lon, lat, targetZoom = 3) {
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+    let z = targetZoom;
+    if (z && typeof z === 'object') z = Number.isFinite(z.zoom) ? z.zoom : 3;
+    if (!Number.isFinite(z)) z = 3;
+    const p = projectLonLat(lon, lat);
+    this._cancelAnimation();
+    this._usingFit = false;
+    this._zoom = clamp(Math.max(this._zoom, z), MIN_ZOOM, MAX_ZOOM);
+    this._center = { x: p.x, y: p.y };
+    this._requestDraw();
+  }
+
   /** 让所有站点点位铺满视野。 */
   fitToStations() {
     if (!this.stations.length) {
