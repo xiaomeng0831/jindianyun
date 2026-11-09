@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>页面走丢了 · 津电云</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f8fafc;
+      --fg: #0f172a;
+      --muted: #64748b;
+      --card: #ffffff;
+      --line: #e2e8f0;
+      --accent: #2563eb;
+      --accent-fg: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e2e8f0;
+        --muted: #94a3b8;
+        --card: #111c2e;
+        --line: #1e293b;
+        --accent: #60a5fa;
+        --accent-fg: #0b1220;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+      line-height: 1.6;
+    }
+    main {
+      width: min(100%, 420px);
+      padding: 32px 24px;
+      text-align: center;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgb(15 23 42 / 0.08);
+    }
+    .code {
+      margin: 0;
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      line-height: 1.1;
+    }
+    h1 { margin: 12px 0 8px; font-size: 20px; }
+    p { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+    a {
+      display: inline-block;
+      padding: 10px 20px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--accent-fg);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="code">404</p>
+    <h1>页面走丢了</h1>
+    <p>你访问的页面不存在，正在带你返回津电云首页…</p>
+    <a id="home-link" href="/">返回首页</a>
+  </main>
+
+  <script>
+    (function () {
+      // GitHub Pages 项目站点形如 /<repo>/…，用户站点形如 /…
+      var parts = location.pathname.split('/').filter(Boolean);
+      var base = parts.length >= 2 ? '/' + parts[0] + '/' : '/';
+      var link = document.getElementById('home-link');
+      if (link) link.href = base;
+      // 防止 404 页自身循环跳转
+      if (location.search.indexOf('from404=1') === -1) {
+        location.replace(base + '?from404=1');
+      }
+    })();
+  </script>
+</body>
+</html>

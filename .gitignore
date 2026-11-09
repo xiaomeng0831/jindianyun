@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Icon?
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 编辑器 / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node 工具（本站本身零构建，仅脚本可能需要）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python 工具与缓存（scripts/ 下的辅助脚本）
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 本地环境与临时文件
+.env
+.env.*
+!.env.example
+*.log
+tmp/
+.cache/

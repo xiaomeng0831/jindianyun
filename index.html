@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>津电云 · 天津大学北洋园校区充电桩实时地图</title>
+  <meta name="description" content="天津大学北洋园校区电动自行车与电动汽车充电桩实时状态地图（模拟数据，非官方）。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cpath d='M17.5 5 9 18h5.2L13 27l9.3-13.2h-5.5L17.5 5Z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./index.html" aria-label="津电云首页">
+      <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="currentColor" opacity="0.12"></rect>
+        <path d="M17.5 5 9 18h5.2L13 27l9.3-13.2h-5.5L17.5 5Z" fill="currentColor"></path>
+      </svg>
+      <span class="brand-text">
+        <strong>津电云</strong>
+        <small>北洋园校区充电桩实时地图</small>
+      </span>
+    </a>
+
+    <form class="search" id="search-form" role="search">
+      <label class="visually-hidden" for="search-input">搜索站点或楼宇</label>
+      <input
+        id="search-input"
+        class="search-input"
+        name="q"
+        type="search"
+        placeholder="搜索站点 / 楼宇…"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        enterkeyhint="search">
+      <button id="search-clear" class="search-clear" type="reset" aria-label="清空搜索" hidden>×</button>
+      <ul id="search-results" class="search-results" role="listbox" aria-label="搜索建议" hidden></ul>
+    </form>
+  </header>
+
+  <main class="app-main">
+    <canvas id="map" class="map" role="img" aria-label="天津大学北洋园校区充电桩地图">您的浏览器不支持 Canvas，无法显示地图。</canvas>
+
+    <div id="legend" class="legend" aria-label="图例">
+      <span class="legend-item"><span class="legend-dot legend-bike" aria-hidden="true"></span>自行车充电点</span>
+      <span class="legend-item"><span class="legend-dot legend-car" aria-hidden="true"></span>汽车充电点</span>
+      <span class="legend-item"><span class="legend-badge" aria-hidden="true">柜</span>锂电柜</span>
+    </div>
+
+    <p id="map-hint" class="map-hint">拖动平移 · 双指或滚轮缩放</p>
+
+    <aside id="panel" class="panel" aria-labelledby="panel-title" aria-hidden="true">
+      <header class="panel-header">
+        <h2 id="panel-title" class="panel-title">站点详情</h2>
+        <button id="panel-close" class="panel-close" type="button" aria-label="关闭站点详情">×</button>
+      </header>
+      <div id="panel-body" class="panel-body">
+        <p class="panel-empty">点击地图上的充电点，查看插口状态与预计结束时间。</p>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <p class="footer-disclaimer">本站数据为<strong>模拟数据</strong>，非官方信息，仅供学习与参考；实际状态请以学校及运营方公布的信息为准。</p>
+    <p class="footer-meta">津电云 · 天津大学北洋园校区 · 底图数据 © OpenStreetMap 贡献者</p>
+  </footer>
+
+  <div id="app-loading" class="app-loading" role="status" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <p id="loading-text" class="loading-text">正在加载底图与站点数据…</p>
+  </div>
+
+  <noscript>
+    <p class="noscript-note">本站需要 JavaScript 才能显示地图，请在浏览器中启用后刷新页面。</p>
+  </noscript>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
