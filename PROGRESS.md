@@ -18,14 +18,25 @@
   - 脚本：`scripts/build_basemap.js`、`scripts/fetch_relations.js`、`scripts/build_stations.js`、
     `scripts/render_preview.py`、`scripts/render_stations.py`
 
+- **2026-11-09 实现阶段**（commit `6f75e79`，25 个文件）
+  - `index.html` / `css/style.css`（33KB，浅色+深色、移动端底部抽屉）
+  - `js/basemap.js` + `js/map.js`：Canvas 2D 离线底图，平移/缩放/图钉着色/选中
+  - `js/adapter.js`：适配器契约（JSDoc + validateDetail）
+  - `js/mock-adapter.js`：确定性模拟（FNV 哈希 + mulberry32，15 分钟时段稳定，
+    宿舍/教学/食堂/汽车四套作息曲线，周末修正，1% 故障，30s 刷新）
+  - `js/panel.js` + `js/app.js` + `js/format.js`：搜索、详情面板、插口点击看预计结束时间
+  - `README.md`、`docs/adapter-guide.md`、`LICENSE`（MIT）、`404.html`、`.gitignore`
+
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）
 - [x] 19+9 个点位坐标（按命名建筑定位）
-- [ ] 底图渲染组件（Canvas/SVG 读取 basemap.json）
-- [ ] 静态站骨架（无构建步骤，直接 GitHub Pages 可跑）
-- [ ] 模拟数据适配器（占用/空闲/预计结束时间，随时间演化）
-- [ ] 点位详情面板
-- [ ] README / LICENSE / GitHub 发布准备
+- [x] 底图渲染组件（Canvas 读取 basemap.json）
+- [x] 静态站骨架（无构建步骤，直接 GitHub Pages 可跑）
+- [x] 模拟数据适配器（占用/空闲/预计结束时间，随时间演化）
+- [x] 点位详情面板
+- [x] README / LICENSE
+- [ ] **发布到 GitHub**：本机没有 `gh` CLI，需用户提供仓库地址或安装 gh
+- [ ] 后续改进：电动汽车 9 站插口数待采集；锂电柜位置待核实；真实数据适配器
 
 ## 关键决策与坑
 - **数据源**：模拟数据 + 可插拔适配器（用户选定）。真实接口（常青藤智能充电 m.sgdq123.com:8601）只留接口位，不实现。
