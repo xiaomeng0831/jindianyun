@@ -42,6 +42,16 @@ python3 -m http.server 8000
 
 然后访问 <http://localhost:8000>。
 
+可选冒烟测试（不参与 GitHub Pages 部署，站点运行时仍然零依赖）：
+
+```bash
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
+
+`tests/smoke.spec.js` 会打开页面、搜索「格园」并确认站点面板打开。
+
 其他等价方式（任选其一）：
 
 ```bash
@@ -191,7 +201,7 @@ open "http://localhost:8000/?adapter=http"
 
 欢迎提交 Issue 与 Pull Request。完整的开发说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。核心约定：
 
-- **保持零依赖**：不要引入 npm 包、框架、CDN 资源或构建步骤；
+- **保持零依赖**：页面运行时不要引入 npm 包、框架、CDN 资源或构建步骤（可选的 Playwright 冒烟测试不参与部署）；
 - **原生 ES Modules**：新增模块使用 `import` / `export`，保证纯浏览器可直接运行；
 - **中文界面**：所有用户可见文案使用简体中文；
 - **数据修正**：请附上可核实的来源；不要提交通过非公开接口抓取的个人数据或凭据；

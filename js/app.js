@@ -42,6 +42,7 @@ const state = {
   buildings: [],
   filter: 'all',
   favorites: new Set(),
+  liveMode: 'live',
 };
 
 /* ---------------------------------------------------------------- 启动 */
@@ -58,10 +59,24 @@ async function boot() {
   if (!canvas) throw new Error('页面缺少 <canvas id="map">');
   if (!panelRoot) throw new Error('页面缺少 <aside id="panel">');
 
-  const [stations, basemap] = await Promise.all([
+  // 底图失败不应拖垮站点列表：两边并行加载，只有站点数据失败才中断启动。
+  const [stationsResult, basemapResult] = await Promise.allSettled([
     loadStations(),
     loadBasemap(BASEMAP_URL),
   ]);
+  if (stationsResult.status === 'rejected') {
+    throw resourceError(stationsResult.reason, 'data/stations.json', '站点数据加载失败');
+  }
+  const stations = stationsResult.value;
+  let basemap = null;
+  let basemapError = null;
+  if (basemapResult.status === 'rejected') {
+    basemapError = resourceError(basemapResult.reason, 'data/basemap.json', '底图加载失败');
+    console.error('[津电云] 底图加载失败', basemapError);
+  } else {
+    basemap = basemapResult.value;
+  }
+
   state.stations = stations;
   state.byId = new Map(stations.map((station) => [station.id, station]));
   state.buildings = buildBuildingIndex(basemap);
@@ -79,7 +94,7 @@ async function boot() {
   });
 
   try {
-    state.mapView = createMap(canvas, basemap, getVisibleStations());
+    state.mapView = createMap(canvas, basemapForMap(basemap, getVisibleStations()), getVisibleStations());
     state.mapView.bindControls({
       zoomIn: '#map-zoom-in',
       zoomOut: '#map-zoom-out',
@@ -87,8 +102,9 @@ async function boot() {
     });
   } catch (error) {
     console.error('[津电云] 地图初始化失败', error);
-    showMapNotice(error);
+    if (!basemapError) showMapNotice(error);
   }
+  if (basemapError) showMapNotice(basemapError);
 
   setupFilters();
   setupSearch();
@@ -173,7 +189,9 @@ function selectStation(stationLike, options = {}) {
 
   state.selectedId = station.id;
   const detail = readDetail(station.id);
-  state.panel.open(station, detail, { updatedAt: readUpdatedAt(detail) });
+  const liveMode = currentLiveMode(station.id);
+  state.liveMode = liveMode;
+  state.panel.open(station, detail, { updatedAt: readUpdatedAt(detail), liveMode });
 
   if (state.mapView) {
     const focused = callFirst(
@@ -410,11 +428,17 @@ function handleAdapterUpdate() {
   callFirst(state.mapView, ['setStations'], getVisibleStations());
 
   const stationId = state.selectedId;
-  if (stationId) {
+  const liveMode = currentLiveMode(stationId);
+  state.liveMode = liveMode;
+  if (stationId && state.panel) {
     const detail = readDetail(stationId);
     if (detail) {
-      state.panel.setDetail(detail, { updatedAt: readUpdatedAt(detail) });
+      state.panel.setDetail(detail, { updatedAt: readUpdatedAt(detail), liveMode });
+    } else if (typeof state.panel.setLiveMode === 'function') {
+      state.panel.setLiveMode(liveMode);
     }
+  } else if (typeof state.panel?.setLiveMode === 'function') {
+    state.panel.setLiveMode(liveMode);
   }
   if (state.refreshing) {
     state.refreshing = false;
@@ -436,14 +460,18 @@ function handleRefresh(stationId) {
     if (settled) return;
     settled = true;
     const id = stationId || state.selectedId;
+    const liveMode = currentLiveMode(id);
+    state.liveMode = liveMode;
+    state.refreshing = false;
+    state.panel.setRefreshing(false);
     if (id) {
       const detail = readDetail(id);
       if (detail) {
-        state.panel.setDetail(detail, { updatedAt: readUpdatedAt(detail) });
+        state.panel.setDetail(detail, { updatedAt: readUpdatedAt(detail), liveMode });
+      } else if (typeof state.panel.setLiveMode === 'function') {
+        state.panel.setLiveMode(liveMode);
       }
     }
-    state.refreshing = false;
-    state.panel.setRefreshing(false);
     if (state.resultsEl && !state.resultsEl.hidden) {
       renderResults(state.query, { preserveActive: true });
     }
@@ -628,6 +656,7 @@ function updateFilterCounts() {
     const el = bar.querySelector(`[data-count="${key}"]`);
     if (el) el.textContent = String(val);
   }
+  updateFilterScrollHint();
 }
 
 function setFilter(next, opts = {}) {
@@ -660,6 +689,19 @@ function setupFilters() {
     const next = chip.dataset.filter || 'all';
     setFilter(next === state.filter && next !== 'all' ? 'all' : next);
   });
+  bar.addEventListener('scroll', updateFilterScrollHint, { passive: true });
+  window.addEventListener('resize', updateFilterScrollHint);
+  requestAnimationFrame(updateFilterScrollHint);
+}
+
+/** 窄屏横滑时给右侧加渐隐，提示后面还有筛选项。 */
+function updateFilterScrollHint() {
+  const bar = document.getElementById('filter-bar');
+  if (!bar) return;
+  const overflows = bar.scrollWidth - bar.clientWidth > 4;
+  bar.classList.toggle('can-scroll', overflows);
+  const atEnd = !overflows || bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 4;
+  bar.classList.toggle('is-scrolled-end', atEnd);
 }
 
 function openResults(query) {
@@ -965,9 +1007,11 @@ function restoreFromHash() {
 }
 
 function showMapNotice(error) {
+  if (document.querySelector('.map-notice')) return;
   const notice = document.createElement('div');
   notice.className = 'map-notice';
-  notice.innerHTML = `<strong>地图未能加载</strong><span>仍可通过顶部搜索查看站点详情。</span>`;
+  const resource = error?.resource ? `${error.resource} 未能加载。` : '';
+  notice.innerHTML = `<strong>地图未能加载</strong><span>${escapeHtml(resource)}仍可通过顶部搜索查看站点详情。</span>`;
   notice.title = error?.message || '';
   document.body.appendChild(notice);
 }
@@ -975,15 +1019,62 @@ function showMapNotice(error) {
 function showFatalError(error) {
   const overlay = document.createElement('div');
   overlay.className = 'app-error';
+  const resource = error?.resource || '';
+  const hint = resource
+    ? `请通过本地静态服务器打开（例如 python3 -m http.server），并确认 ${resource} 可访问。`
+    : '请通过本地静态服务器打开（例如 python3 -m http.server）后重试。';
   overlay.innerHTML = `
     <div class="app-error-card">
       <strong>页面加载失败</strong>
       <p>${escapeHtml(error?.message || '未知错误')}</p>
-      <p class="app-error-hint">请通过本地静态服务器打开（例如 python3 -m http.server），并确认 data/stations.json 可访问。</p>
+      <p class="app-error-hint">${escapeHtml(hint)}</p>
       <button type="button">重新加载</button>
     </div>`;
   overlay.querySelector('button').addEventListener('click', () => location.reload());
   document.body.appendChild(overlay);
+}
+
+/** 把底层 fetch 异常改写成带资源路径的错误，避免失败提示张冠李戴。 */
+function resourceError(error, resource, label) {
+  if (error?.resource === resource) return error;
+  const reason = error?.message || '未知错误';
+  const wrapped = new Error(`${label}：${resource}（${reason}）`);
+  wrapped.resource = resource;
+  if (error) wrapped.cause = error;
+  return wrapped;
+}
+
+/** 底图缺失时用站点范围撑开视野，让图钉仍然画得出来。 */
+function basemapForMap(basemap, stations) {
+  if (basemap) return basemap;
+  const points = (stations || []).filter((station) => (
+    Number.isFinite(station.lon) && Number.isFinite(station.lat)
+  ));
+  if (!points.length) return { bbox: [117.15, 38.99, 117.2, 39.02] };
+  let minLon = Infinity;
+  let minLat = Infinity;
+  let maxLon = -Infinity;
+  let maxLat = -Infinity;
+  for (const station of points) {
+    minLon = Math.min(minLon, station.lon);
+    minLat = Math.min(minLat, station.lat);
+    maxLon = Math.max(maxLon, station.lon);
+    maxLat = Math.max(maxLat, station.lat);
+  }
+  const padLon = Math.max(0.002, (maxLon - minLon) * 0.08);
+  const padLat = Math.max(0.002, (maxLat - minLat) * 0.08);
+  return {
+    bbox: [minLon - padLon, minLat - padLat, maxLon + padLon, maxLat + padLat],
+  };
+}
+
+/** HTTP 适配器在接口失败后改走模拟数据时，面板要标明来源。 */
+function currentLiveMode(stationId) {
+  const adapter = state.adapter;
+  if (adapter && typeof adapter.isUsingFallback === 'function') {
+    return adapter.isUsingFallback(stationId) ? 'fallback' : 'live';
+  }
+  return 'live';
 }
 
 /* ------------------------------------------------- 无适配器时的兜底模拟 */
