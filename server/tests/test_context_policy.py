@@ -34,6 +34,23 @@ def test_scope_statement_is_not_a_prompt_leak(app_module):
     assert not app_module.leaks_system_prompt("我只能回答校园充电桩和地图使用")
 
 
+def test_long_legacy_context_is_capped_and_not_system(app_module, chat_client):
+    seen = []
+    client = chat_client("好的", seen, peer=("127.0.0.1", 9))
+    blob = "格园" + ("甲" * 4000)
+    response = client.post(
+        "/api/chat",
+        json={"messages": [{"role": "user", "content": "格园附近有充电桩吗？"}], "context": blob},
+    )
+    assert response.status_code == 200
+    system = seen[0]["messages"][0]
+    data = seen[0]["messages"][1]
+    assert system["role"] == "system"
+    assert "甲" not in system["content"]
+    assert data["role"] == "user"
+    assert data["content"].count("甲") <= app_module.LEGACY_CONTEXT_LIMIT
+
+
 def test_upstream_budget_is_thirty_seconds(app_module):
     assert app_module.CONNECT_TIMEOUT + app_module.READ_TIMEOUT == app_module.UPSTREAM_BUDGET
     assert app_module.UPSTREAM_BUDGET == 30

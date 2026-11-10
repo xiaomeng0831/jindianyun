@@ -122,45 +122,36 @@ async function boot() {
   hideLoading();
 }
 
-/** 当前内存中的站点名称与插口统计，供助手接口的 context 字段使用。 */
+/** 站点静态字段、实时空闲数和楼宇中心，交给服务端排成事实表。计数和排序不在模型里做。 */
 function buildChatContext() {
-  const stations = state.stations;
-  if (!stations.length) return '';
-
-  let idle = 0;
-  let charging = 0;
-  let fault = 0;
-  let known = 0;
-  let bike = 0;
-  let car = 0;
-  const parts = [];
-
-  for (const station of stations) {
-    const type = station.type === 'car' ? '汽车' : '自行车';
-    if (station.type === 'car') car += 1;
-    else bike += 1;
-    const cabinet = Number(station.cabinets) > 0 ? `，锂电柜${station.cabinets}` : '';
+  if (!state.stations.length) return '';
+  const stations = state.stations.map((station) => {
     const detail = readDetail(station.id);
     const summary = detail ? summarizeStation(station, detail) : null;
+    const sockets = Number(station.sockets);
+    const row = {
+      name: station.name,
+      type: station.type === 'car' ? 'car' : 'bike',
+      sockets: Number.isFinite(sockets) ? sockets : null,
+      cabinets: Number(station.cabinets) > 0 ? Number(station.cabinets) : 0,
+      approx: Boolean(station.approx || station.socketsApprox),
+      note: typeof station.note === 'string' ? station.note.slice(0, 120) : '',
+      lon: station.lon,
+      lat: station.lat,
+    };
     if (summary?.known) {
-      known += 1;
-      idle += summary.idle;
-      charging += summary.charging;
-      fault += summary.fault;
-      parts.push(`${station.name}（${type}，空闲${summary.idle}/占用${summary.charging}/故障${summary.fault}${cabinet}）`);
-    } else {
-      const sockets = Number.isFinite(Number(station.sockets)) ? Number(station.sockets) : '?';
-      parts.push(`${station.name}（${type}，插口${sockets}，状态未知${cabinet}）`);
+      row.idle = summary.idle;
+      row.busy = summary.charging;
+      row.fault = summary.fault;
     }
-  }
-
-  const head = `北洋园校区当前已加载${stations.length}个充电站（自行车${bike}，汽车${car}）。`
-    + (known
-      ? `其中${known}个站有插口统计：空闲${idle}，占用${charging}，故障${fault}。`
-      : '暂无插口统计。');
-  let text = `${head}站点：${parts.join('；')}。以上为页面当前内存中的数据，可能是模拟数据，实际以地图显示为准。`;
-  if (text.length > 1800) text = `${text.slice(0, 1799)}…`;
-  return text;
+    return row;
+  });
+  const buildings = state.buildings.map((building) => ({
+    name: building.name,
+    lon: Math.round(building.lon * 1e5) / 1e5,
+    lat: Math.round(building.lat * 1e5) / 1e5,
+  }));
+  return JSON.stringify({ v: 1, stations, buildings });
 }
 
 function hideLoading(immediate = false) {
@@ -752,6 +743,10 @@ function updateFilterScrollHint() {
 }
 
 function openResults(query) {
+  const chatPanel = document.getElementById('chat-panel');
+  if (chatPanel && !chatPanel.hidden) {
+    window.dispatchEvent(new CustomEvent('jdy-chat-toggle', { detail: { open: false } }));
+  }
   state.query = query;
   state.activeIndex = 0;
   renderResults(query);
@@ -952,6 +947,10 @@ function syncActiveOption() {
     input.removeAttribute('aria-activedescendant');
   }
 }
+
+window.addEventListener('jdy-chat-toggle', (event) => {
+  if (event.detail?.open) closeResults();
+});
 
 function closeResults() {
   const resultsEl = state.resultsEl;
