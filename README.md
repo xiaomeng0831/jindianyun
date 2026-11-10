@@ -2,7 +2,7 @@
 
 > 天津大学北洋园校区电动车充电桩实时状态地图
 
-津电云是一个面向天津大学北洋园校区的充电桩状态地图：在离线矢量校园底图上查看电动自行车与电动汽车充电点的位置、插口占用情况与预计结束时间，帮助师生少走空路、错峰充电。
+津电云是一个面向天津大学北洋园校区的充电桩状态地图：在离线矢量校园底图上查看电动自行车与电动汽车充电点的位置、插口占用情况与预计结束时间，帮助师生少走空路、错峰充电。地图加载完成后，桌面端右侧、窄屏左侧会出现悬浮问答按钮，用来询问站点概况和地图用法。
 
 > **数据声明**
 >
@@ -18,6 +18,14 @@
 | --- | --- |
 | ![津电云桌面端（深色）](docs/screenshots/desktop-dark.png) | ![津电云移动端（深色）](docs/screenshots/mobile-dark.png) |
 
+### 问答助手
+
+![津电云助手收起](docs/screenshots/chat-closed.png)
+
+![津电云助手展开并回答](docs/screenshots/chat-open.png)
+
+按钮在地图就绪后出现。点开可以提问；回答只供参考，插口是否空闲以地图上的颜色和站点详情为准。
+
 ## 功能特性
 
 - **离线矢量底图** — 基于 OpenStreetMap 数据自绘北洋园校区（112 个建筑轮廓、95 栋命名建筑、276 段道路、87 个绿地/水域、32 个运动场地），不依赖在线瓦片、地图 Key 或外部 CDN。
@@ -26,9 +34,9 @@
 - **24 小时占用趋势与错峰建议** — 站点详情面板内置 24 小时预计占用率柱状图，高亮当前时段并自动计算日间空闲较多的建议错峰充电时段。
 - **站点与楼宇检索** — 搜索框既可搜充电站点，也可搜楼宇（38/39 教、工会、郑东图书馆等），选中后地图直接定位，全程键盘可操作。
 - **地图缩放与复位控件** — 支持拖拽平移、滚轮/双指缩放、双击放大，以及右下角悬浮放大 / 缩小 / 一键复位全校区视野控件。
-- **问答助手** — 悬浮按钮打开对话面板，可询问站点或用法。请求发往 `js/chat.js` 里的 `CHAT_API_URL`（不在仓库中存放密钥），并附上当前已加载站点的名称与空闲 / 占用 / 故障数量；回复按纯文本渲染。对话只保存在当前标签页的 `sessionStorage`。
+- **问答助手** — 悬浮按钮打开对话面板，可询问站点概况或地图用法。浏览器把最近对话和当前已加载站点的名称、空闲 / 占用 / 故障数量发到 `js/chat.js` 里的 `CHAT_API_URL`；回复按纯文本渲染（换行、`**加粗**`、行内代码）。对话只留在当前标签页的 `sessionStorage`。密钥在服务器上的文件里。架构与限额见下文。
 - **深浅色主题** — 跟随系统 `prefers-color-scheme`，颜色统一由 CSS 自定义属性驱动。
-- **零构建、零依赖** — 纯 HTML + 原生 ES Modules + Canvas 2D，无 npm、无打包器、无框架，静态托管即可运行。
+- **零构建的静态地图** — 页面是纯 HTML + 原生 ES Modules + Canvas 2D，无 npm、无打包器、无框架，静态托管即可运行。问答请求发到单独的 HTTPS 接口；接口暂时不可用时，地图照常使用。
 - **可插拔数据源与本地代理脚手架** — 自带模拟适配器（`js/mock-adapter.js`）、HTTP 实时适配器（`js/http-adapter.js`）以及常青藤智能充电本地代理脚本（`scripts/cqt_proxy.mjs`），见 [适配器开发指南](docs/adapter-guide.md)；真实数据从哪来见 [真实数据获取路线](docs/real-data.md)。
 - **无障碍与移动端优化** — 语义化结构、键盘操作、`focus-visible`、安全区适配、按 `devicePixelRatio` 清晰渲染。
 
@@ -43,6 +51,8 @@ python3 -m http.server 8000
 
 然后访问 <http://localhost:8000>。
 
+本地页面可以打开助手面板。生产接口的 CORS 只允许 `https://xiaomeng0831.github.io`，所以在 localhost 里提问会看到「助手服务暂时连不上，请稍后再试。地图仍可正常使用。」地图数据不走这个接口。
+
 可选冒烟测试（不参与 GitHub Pages 部署，站点运行时仍然零依赖）：
 
 ```bash
@@ -51,7 +61,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-`tests/smoke.spec.js` 会打开页面、搜索「格园」并确认站点面板打开。
+`tests/smoke.spec.js` 会打开页面、搜索「格园」并确认站点面板打开。`tests/chat.spec.js` 会拦截 `CHAT_API_URL` 检查问答面板，不会访问线上接口。
 
 其他等价方式（任选其一）：
 
@@ -127,6 +137,33 @@ data/stations.json               26 个站点静态信息
 
 完整的接口契约、示例代码与合规注意事项见 [docs/adapter-guide.md](docs/adapter-guide.md)。
 
+### 问答助手后端
+
+地图页面仍由 GitHub Pages 发布。悬浮按钮里的脚本把对话发到单独的后端，密钥留在那台小型 Linux 虚拟机上：
+
+```mermaid
+flowchart LR
+  widget["浏览器小组件<br/>js/chat.js"]
+  caddy["Caddy<br/>自动 HTTPS"]
+  api["FastAPI / uvicorn<br/>127.0.0.1:8765<br/>systemd: jindianyun-chat"]
+  model["SiliconFlow<br/>Qwen/Qwen3-8B"]
+  widget -->|"HTTPS POST /api/chat"| caddy
+  caddy -->|"reverse_proxy"| api
+  api -->|"chat/completions"| model
+```
+
+`CHAT_API_URL` 当前是 `https://23-100-88-70.sslip.io/api/chat`。Caddy 用 Let's Encrypt 为该主机名申请证书，再反代到本机 `127.0.0.1:8765`。进程由 systemd 服务 `jindianyun-chat.service` 启动。模型默认是 SiliconFlow 免费额度上的 `Qwen/Qwen3-8B`。
+
+| 限制 | 行为 |
+| --- | --- |
+| 频率 | 每个 IP 每分钟 10 次、每天 100 次 |
+| 对话 | 浏览器提交最近 12 轮（最多 24 条 user / assistant 消息）。服务端只把其中最后 12 条发给模型 |
+| 字数 | 这 12 条正文合计不超过 4000 字；单条最长 2000 字；站点摘要 `context` 最长 2000 字 |
+| 来源 | CORS 只允许 `https://xiaomeng0831.github.io` |
+| 密钥 | 只放在服务器文件 `~/.sf_key`（可用环境变量 `SILICONFLOW_KEY_FILE` 改路径），权限 `600`。仓库的 `.gitignore` 会挡住同名文件 |
+
+参考实现、systemd 单元、Caddy 示例和部署步骤在 [server/README.md](server/README.md)。示例里的域名和证书邮箱是占位符。问答接口不提供充电桩实时状态；插口占用仍来自页面上的模拟数据或另行接入的适配器。
+
 ### 目录结构
 
 ```text
@@ -140,7 +177,7 @@ data/stations.json               26 个站点静态信息
 │   ├── basemap.js           离线矢量底图渲染
 │   ├── map.js               地图交互、视野控件与站点图钉
 │   ├── panel.js             站点详情面板（含 24h 占用趋势图）
-│   ├── chat.js              悬浮问答助手
+│   ├── chat.js              悬浮问答助手（CHAT_API_URL、最近 12 轮）
 │   ├── format.js            中文格式化工具
 │   ├── adapter.js           数据适配器契约与校验工具
 │   ├── mock-adapter.js      默认模拟数据适配器（含作息曲线）
@@ -151,7 +188,13 @@ data/stations.json               26 个站点静态信息
 ├── docs/
 │   ├── adapter-guide.md     数据源适配器开发指南
 │   ├── real-data.md         真实数据获取路线（常青藤接口 / 优易充 / 北洋维基）
-│   └── screenshots/         桌面端与移动端深浅色界面预览图
+│   └── screenshots/         桌面端、移动端与问答助手预览图
+├── server/                  问答后端参考实现（Pages 不运行，不含密钥）
+│   ├── README.md            虚拟环境、密钥文件、systemd、Caddy、curl、轮换与日志
+│   ├── app.py               与线上一致的 FastAPI 应用
+│   ├── requirements.txt     线上使用的 Python 依赖版本
+│   ├── jindianyun-chat.service
+│   └── Caddyfile.example    域名与 ACME 邮箱为占位符
 └── scripts/                 数据构建与本地代理脚本
     ├── build_basemap.js     从 OSM 原始数据构建 data/basemap.json
     ├── build_stations.js    按命名建筑生成 data/stations.json
@@ -170,6 +213,7 @@ data/stations.json               26 个站点静态信息
 
 - 本项目为个人学习性质的非官方项目，不代表天津大学或任何充电运营方；
 - 所有实时状态均为模拟数据，**不可用于实际出行决策**；
+- 问答助手的回答由模型生成，只供参考，不能当作插口的实时状态；
 - 点位信息来自公开资料，部分电动汽车车位数为预估，可能与实际情况存在偏差；
 - 底图数据 © OpenStreetMap 贡献者，遵循 [ODbL 许可](https://www.openstreetmap.org/copyright)。
 
@@ -187,7 +231,7 @@ open "http://localhost:8000/?adapter=http"
 
 如需填入个人抓包获得的 `OPEN_ID`，请复制 `.env.example` 为 `.env` 后配置。步骤、接口契约与合规注意事项见 [docs/adapter-guide.md](docs/adapter-guide.md) 与 [docs/real-data.md](docs/real-data.md)。
 
-> 请勿绕过第三方平台的登录、签名或风控机制抓取数据，也不要将任何密钥写入前端代码或提交到仓库。
+> 请勿绕过第三方平台的登录、签名或风控机制抓取数据，也不要将任何密钥写入前端代码或提交到仓库。问答接口的密钥放在服务器的 `~/.sf_key`，说明见 [server/README.md](server/README.md)。
 
 ## 路线图
 
@@ -196,6 +240,7 @@ open "http://localhost:8000/?adapter=http"
 - [x] 地图渲染、站点与楼宇检索、详情面板与缩放/复位视野控件
 - [x] 站点分类筛选、常用站点收藏（`localStorage`）与 24 小时占用趋势图
 - [x] 模拟数据适配器 + HTTP 实时数据适配器（`js/http-adapter.js`）+ 本地代理脚手架（`scripts/cqt_proxy.mjs`）
+- [x] 悬浮问答助手（`js/chat.js`）与不含密钥的参考后端（`server/`）
 - [ ] 实地核实其余 6 处电动汽车站点的精确快慢充车位数
 - [ ] PWA / 离线缓存与主屏图标
 - [ ] 多校区支持
@@ -207,7 +252,7 @@ open "http://localhost:8000/?adapter=http"
 - **保持零依赖**：页面运行时不要引入 npm 包、框架、CDN 资源或构建步骤（可选的 Playwright 冒烟测试不参与部署）；
 - **原生 ES Modules**：新增模块使用 `import` / `export`，保证纯浏览器可直接运行；
 - **中文界面**：所有用户可见文案使用简体中文；
-- **数据修正**：请附上可核实的来源；不要提交通过非公开接口抓取的个人数据或凭据；
+- **数据修正**：请附上可核实的来源；不要提交通过非公开接口抓取的个人数据或凭据。问答密钥只放在服务器的 `~/.sf_key`；
 - **本地验证**：提交前用 `python3 -m http.server` 打开页面，检查桌面端与移动端、浅色与深色主题；
 - **适配器改动**：遵循 [适配器开发指南](docs/adapter-guide.md) 的接口契约。
 

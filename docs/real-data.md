@@ -89,7 +89,7 @@
 3. **前端切换至 HTTP 适配器**
    在浏览器打开：
    ```text
-   http://127.0.0.1:8765/?adapter=http&endpoint=http://127.0.0.1:8787/api/stations
+   http://127.0.0.1:8000/?adapter=http&endpoint=http://127.0.0.1:8787/api/charging/status
    ```
    `js/http-adapter.js` 默认以 `js/mock-adapter.js` 作为 `fallbackAdapter`，对于代理尚未覆盖的站点（例如优易充电动汽车桩）会自动无缝回退到本地确定性模拟数据，并在网络抖动时保留上一轮快照（Stale-if-Error）。
 
@@ -102,3 +102,4 @@
 - `data/stations.json`：**静态点位信息已按北洋维基校正**（18 处自行车 / 229 车位 / 8 组锂电柜；8 处电动汽车点位共 61 车位，其中 2 处为维基实测快/慢充数、6 处为按车棚规模补齐的预估车位数 `socketsApprox: true`）
 - `js/mock-adapter.js`：确定性模拟数据，按四套作息曲线演化并提供 24 小时繁忙度趋势
 - `js/http-adapter.js` + `scripts/cqt_proxy.mjs`：**已实现** HTTP 实时适配器与常青藤智能充电本地缓存代理脚手架，支持 `?adapter=http` 一键切换
+- 页面上的问答助手（[`server/README.md`](../server/README.md)）只回答文字问题，不提供插口实时状态。本地静态页用 `8000` 端口；`127.0.0.1:8765` 是问答进程，不要把这两个端口对调

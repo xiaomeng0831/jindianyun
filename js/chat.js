@@ -10,7 +10,7 @@
 export const CHAT_API_URL = 'https://23-100-88-70.sslip.io/api/chat';
 
 const STORAGE_KEY = 'jindianyun:chat';
-/** 一轮 = 用户一句 + 助手一句。请求体里最多带最近这些轮。 */
+/** 一轮 = 用户一句 + 助手一句。请求体里最多带最近这些轮。服务端再只把最后 12 条转给模型。 */
 const MAX_TURNS = 12;
 const MAX_REQUEST_MESSAGES = MAX_TURNS * 2;
 const MAX_STORED_MESSAGES = 40;
@@ -19,7 +19,7 @@ const MAX_INPUT_LENGTH = 800;
 const MAX_REPLY_LENGTH = 4000;
 
 const COPY = {
-  unreachable: '助手暂时连不上，请检查网络后再试。',
+  unreachable: '助手服务暂时连不上，请稍后再试。地图仍可正常使用。',
   timeout: '助手响应超时，请稍后再试。',
   limited: '提问太频繁了，请稍等一会儿再试。',
   failed: '助手暂时没能回答，请稍后再试。',
@@ -288,6 +288,16 @@ function appendFormatted(parent, text) {
   });
 }
 
+/** 只采用服务端写给访客的短中文错误。英文或带链接、标记的正文仍用页面上的固定提示。 */
+function userFacingServerError(data) {
+  const text = data && typeof data.error === 'string' ? data.error.trim() : '';
+  if (text.length < 2 || text.length > 80) return '';
+  if (!/[\u3400-\u9fff]/.test(text)) return '';
+  if (/[<>]|https?:|api[_-]?key|token|bearer|secret|password|sk-|密钥|密码/i.test(text)) return '';
+  if (/[A-Za-z0-9+/=_-]{20,}/.test(text)) return '';
+  return text;
+}
+
 async function postChat(transcript, context, signal) {
   const payload = { messages: transcript };
   if (context) payload.context = context;
@@ -319,13 +329,9 @@ async function postChat(transcript, context, signal) {
     data = null;
   }
 
-  if (response.status === 429) {
-    const failure = new Error(COPY.limited);
-    failure.name = 'ChatError';
-    throw failure;
-  }
   if (!response.ok) {
-    const failure = new Error(COPY.failed);
+    const fallback = response.status === 429 ? COPY.limited : COPY.failed;
+    const failure = new Error(userFacingServerError(data) || fallback);
     failure.name = 'ChatError';
     throw failure;
   }

@@ -41,3 +41,10 @@ venv/
 *.log
 tmp/
 .cache/
+
+# 问答后端密钥。默认路径是服务器上的 ~/.sf_key，也可用 SILICONFLOW_KEY_FILE 改位置。
+# 这些文件名在仓库任意目录下都不要提交。
+.sf_key
+*.sf_key
+sf_key
+secrets/
