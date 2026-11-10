@@ -99,6 +99,12 @@ def test_stale_rate_limit_keys_are_pruned(app_module):
     assert "203.0.113.9" in limiter._events
 
 
+def test_readme_does_not_claim_this_tree_is_production():
+    readme = (ROOT / "server" / "README.md").read_text(encoding="utf-8")
+    assert "与当前线上进程一致" not in readme
+    assert "还不是" in readme and "线上进程" in readme
+
+
 def test_launch_commands_pass_no_proxy_headers():
     service = (ROOT / "server" / "jindianyun-chat.service").read_text(encoding="utf-8")
     readme = (ROOT / "server" / "README.md").read_text(encoding="utf-8")
