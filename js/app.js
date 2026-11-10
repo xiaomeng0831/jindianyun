@@ -20,6 +20,7 @@ import { loadBasemap } from './basemap.js';
 import { createMockAdapter, computeHourlyTrend } from './mock-adapter.js';
 import { createHttpAdapter } from './http-adapter.js';
 import { createStationPanel, summarizeStation, escapeHtml } from './panel.js';
+import { mountChatWidget } from './chat.js';
 
 const STATIONS_URL = new URL('../data/stations.json', import.meta.url);
 const BASEMAP_URL = new URL('../data/basemap.json', import.meta.url);
@@ -112,8 +113,54 @@ async function boot() {
   subscribeAdapter();
   setupGlobalHandlers();
   restoreFromHash();
+  try {
+    mountChatWidget(document.getElementById('chat-widget'), { getContext: buildChatContext });
+  } catch (error) {
+    console.error('[津电云] 助手初始化失败', error);
+  }
   document.body.classList.add('app-ready');
   hideLoading();
+}
+
+/** 当前内存中的站点名称与插口统计，供助手接口的 context 字段使用。 */
+function buildChatContext() {
+  const stations = state.stations;
+  if (!stations.length) return '';
+
+  let idle = 0;
+  let charging = 0;
+  let fault = 0;
+  let known = 0;
+  let bike = 0;
+  let car = 0;
+  const parts = [];
+
+  for (const station of stations) {
+    const type = station.type === 'car' ? '汽车' : '自行车';
+    if (station.type === 'car') car += 1;
+    else bike += 1;
+    const cabinet = Number(station.cabinets) > 0 ? `，锂电柜${station.cabinets}` : '';
+    const detail = readDetail(station.id);
+    const summary = detail ? summarizeStation(station, detail) : null;
+    if (summary?.known) {
+      known += 1;
+      idle += summary.idle;
+      charging += summary.charging;
+      fault += summary.fault;
+      parts.push(`${station.name}（${type}，空闲${summary.idle}/占用${summary.charging}/故障${summary.fault}${cabinet}）`);
+    } else {
+      const sockets = Number.isFinite(Number(station.sockets)) ? Number(station.sockets) : '?';
+      parts.push(`${station.name}（${type}，插口${sockets}，状态未知${cabinet}）`);
+    }
+  }
+
+  const head = `北洋园校区当前已加载${stations.length}个充电站（自行车${bike}，汽车${car}）。`
+    + (known
+      ? `其中${known}个站有插口统计：空闲${idle}，占用${charging}，故障${fault}。`
+      : '暂无插口统计。');
+  let text = `${head}站点：${parts.join('；')}。以上为页面当前内存中的数据，可能是模拟数据，实际以地图显示为准。`;
+  if (text.length > 1800) text = `${text.slice(0, 1799)}…`;
+  return text;
 }
 
 function hideLoading(immediate = false) {

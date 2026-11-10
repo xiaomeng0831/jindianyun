@@ -26,6 +26,7 @@
 - **24 小时占用趋势与错峰建议** — 站点详情面板内置 24 小时预计占用率柱状图，高亮当前时段并自动计算日间空闲较多的建议错峰充电时段。
 - **站点与楼宇检索** — 搜索框既可搜充电站点，也可搜楼宇（38/39 教、工会、郑东图书馆等），选中后地图直接定位，全程键盘可操作。
 - **地图缩放与复位控件** — 支持拖拽平移、滚轮/双指缩放、双击放大，以及右下角悬浮放大 / 缩小 / 一键复位全校区视野控件。
+- **问答助手** — 悬浮按钮打开对话面板，可询问站点或用法。请求发往 `js/chat.js` 里的 `CHAT_API_URL`（不在仓库中存放密钥），并附上当前已加载站点的名称与空闲 / 占用 / 故障数量；回复按纯文本渲染。对话只保存在当前标签页的 `sessionStorage`。
 - **深浅色主题** — 跟随系统 `prefers-color-scheme`，颜色统一由 CSS 自定义属性驱动。
 - **零构建、零依赖** — 纯 HTML + 原生 ES Modules + Canvas 2D，无 npm、无打包器、无框架，静态托管即可运行。
 - **可插拔数据源与本地代理脚手架** — 自带模拟适配器（`js/mock-adapter.js`）、HTTP 实时适配器（`js/http-adapter.js`）以及常青藤智能充电本地代理脚本（`scripts/cqt_proxy.mjs`），见 [适配器开发指南](docs/adapter-guide.md)；真实数据从哪来见 [真实数据获取路线](docs/real-data.md)。
@@ -105,6 +106,7 @@ index.html + css/                页面结构与主题
     ├── js/map.js                地图交互（平移 / 缩放 / 选点）
     ├── js/basemap.js            离线矢量底图渲染（Canvas）
     ├── js/panel.js              站点详情面板
+    ├── js/chat.js               悬浮问答助手（CHAT_API_URL）
     └── js/format.js             中文格式化工具
 
 数据适配器（默认 js/mock-adapter.js）
@@ -138,6 +140,7 @@ data/stations.json               26 个站点静态信息
 │   ├── basemap.js           离线矢量底图渲染
 │   ├── map.js               地图交互、视野控件与站点图钉
 │   ├── panel.js             站点详情面板（含 24h 占用趋势图）
+│   ├── chat.js              悬浮问答助手
 │   ├── format.js            中文格式化工具
 │   ├── adapter.js           数据适配器契约与校验工具
 │   ├── mock-adapter.js      默认模拟数据适配器（含作息曲线）

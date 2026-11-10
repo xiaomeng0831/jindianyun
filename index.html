@@ -93,6 +93,44 @@
     </aside>
   </main>
 
+  <div id="chat-widget" class="chat-widget">
+    <section id="chat-panel" class="chat-panel" role="dialog" aria-labelledby="chat-title" aria-hidden="true" hidden>
+      <header class="chat-header">
+        <div class="chat-heading">
+          <h2 id="chat-title" class="chat-title">津电云助手</h2>
+          <p class="chat-subtitle">问问站点，或怎么使用这张地图</p>
+        </div>
+        <button id="chat-clear" class="chat-text-btn" type="button">清空</button>
+        <button id="chat-close" class="chat-close" type="button" aria-label="关闭助手">×</button>
+      </header>
+      <div id="chat-log" class="chat-log" tabindex="0" aria-label="对话记录">
+        <div id="chat-empty" class="chat-empty">
+          <p>可以问哪些站点比较空、某栋楼附近有没有充电桩，或怎么筛选和搜索。</p>
+          <div class="chat-suggestions">
+            <button type="button" class="chat-suggest" data-suggest="哪些站点现在比较空？">哪些站点现在比较空？</button>
+            <button type="button" class="chat-suggest" data-suggest="格园附近有充电桩吗？">格园附近有充电桩吗？</button>
+            <button type="button" class="chat-suggest" data-suggest="怎么使用这个地图？">怎么使用这个地图？</button>
+          </div>
+        </div>
+      </div>
+      <p id="chat-status" class="visually-hidden" role="status" aria-live="polite"></p>
+      <p class="chat-note">回答仅供参考，站点状态以地图为准。</p>
+      <form id="chat-form" class="chat-form">
+        <label class="visually-hidden" for="chat-input">向津电云助手提问</label>
+        <textarea id="chat-input" class="chat-input" rows="1" maxlength="800" placeholder="输入问题，Enter 发送" enterkeyhint="send"></textarea>
+        <button id="chat-send" class="chat-send" type="submit" disabled>发送</button>
+      </form>
+    </section>
+    <button id="chat-launcher" class="chat-launcher" type="button" aria-expanded="false" aria-controls="chat-panel" title="问问津电云">
+      <svg class="chat-icon chat-icon-open" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M5.5 6.5h13a1.5 1.5 0 0 1 1.5 1.5v7.2a1.5 1.5 0 0 1-1.5 1.5H12l-3.4 2.6c-.46.35-1.1-.02-1.1-.58V16.7H5.5A1.5 1.5 0 0 1 4 15.2V8a1.5 1.5 0 0 1 1.5-1.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      </svg>
+      <svg class="chat-icon chat-icon-close" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
   <footer class="site-footer">
     <p class="footer-disclaimer">本站数据为<strong>模拟数据</strong>，非官方信息，仅供学习与参考；实际状态请以学校及运营方公布的信息为准。</p>
     <p class="footer-meta">津电云 · 天津大学北洋园校区 · 底图数据 © OpenStreetMap 贡献者</p>
