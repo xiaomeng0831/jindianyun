@@ -25,6 +25,7 @@ python3 -m http.server 8000
 | `js/map.js` | Canvas 地图视图：平移、缩放、图钉、tooltip |
 | `js/basemap.js` | 读取 `data/basemap.json` 并绘制各图层 |
 | `js/panel.js` | 站点详情面板 |
+| `js/chat.js` | 悬浮问答助手。接口地址只改 `CHAT_API_URL`，不要把密钥写进仓库 |
 | `js/adapter.js` | 数据适配器契约（权威定义） |
 | `js/mock-adapter.js` | 模拟数据实现 |
 | `data/stations.json` | 站点静态信息 |
