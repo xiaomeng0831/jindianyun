@@ -2,7 +2,7 @@
 
 本目录是线上问答接口的参考实现，给静态页面上的悬浮助手提供 `POST /api/chat`。GitHub Pages 只发布地图页面，不会运行这里的 Python。
 
-`app.py` 与 `requirements.txt` 与当前线上进程一致，仓库里没有 API 密钥。示例里的域名和 ACME 邮箱是占位符（`chat.example.com`、`you@example.com`）。把示例复制到 `/etc/caddy/Caddyfile` 之后再替换，仓库里的示例保持占位符。
+仓库里的 `app.py` **还不是**正在跑的线上进程。main 上合并的参考实现没有本分支的访客 IP 限流、`--no-proxy-headers` 和代码回复拦截；机器上也可能有未入库的热修。部署这份文件会覆盖线上进程。回滚要用部署前备份的 `app.py` 和 systemd 单元，不能把仓库里的某一句当成线上现状。仓库里没有 API 密钥。示例里的域名和 ACME 邮箱是占位符（`chat.example.com`、`you@example.com`）。把示例复制到 `/etc/caddy/Caddyfile` 之后再替换，仓库里的示例保持占位符。
 
 调用关系：
 
@@ -38,18 +38,18 @@ flowchart LR
 
 | 项目 | 值 |
 | --- | --- |
-| 频率 | 每个访客 IP 每分钟 10 次（`CHAT_RATE_PER_MIN`）、每天 100 次（`CHAT_RATE_PER_DAY`）。超出返回 429、一句短中文和 `Retry-After`。计数在进程内存里，重启服务会清零 |
+| 频率 | 每个访客 IP 每分钟 10 次（`CHAT_RATE_PER_MIN`）、每天 100 次（`CHAT_RATE_PER_DAY`）。IPv6 按 /64 计。超出返回 429、一句短中文和 `Retry-After`。计数在进程内存里，超过一天的地址会清掉，重启也会清零 |
 | 全站上限 | 每天最多 1000 次上游模型调用（`CHAT_GLOBAL_DAILY_CAP`）。只计算真正发给模型的请求，用来限制费用。超出同样是 429 |
 | 浏览器单条 | 输入框最多 800 字（`index.html` 的 `maxlength` 与 `js/chat.js` 的 `MAX_INPUT_LENGTH`） |
 | 浏览器提交 | 最近 12 轮对话（一轮是一条用户消息加一条助手消息，最多 24 条），另加一段站点摘要 |
 | 转给模型 | 服务端只把请求里的最后 12 条消息发给模型。浏览器最多会提交 24 条（12 轮） |
 | 字数 | 上述 12 条正文合计不超过 4000 字；单条最长 2000 字；可选 `context` 最长 2000 字 |
-| 范围 | 系统提示要求只回答北洋园校区充电桩地图和津电云用法。回复里若出现围栏代码（` ``` `）或明显的源码，服务端换成一句中文拒绝，不把代码返回 |
+| 范围 | 系统提示要求只回答北洋园校区充电桩地图和津电云用法。围栏里的中文名单可以保留；围栏或正文里若是源码、SQL、shell 或 HTML，整段换成中文拒绝 |
 | 提示词 | 回复若复述系统提示里的原句，服务端整段换成一句拒绝，不把原文返回 |
 | CORS | 只允许 `https://xiaomeng0831.github.io` |
 | 模型 | `Qwen/Qwen3-8B`，可用环境变量 `SILICONFLOW_MODEL` 覆盖 |
 | 上游地址 | `https://api.siliconflow.cn/v1`，可用 `SILICONFLOW_API_BASE` 覆盖 |
-| 上游超时 | 30 秒。浏览器大约 20 秒后会自己放弃等待 |
+| 上游超时 | 连接最多 5 秒、读取最多 25 秒，相加 30 秒，必须小于浏览器等待。输出上限 1200 token，避免长名单被截断 |
 | 监听 | `127.0.0.1:8765`，启动命令必须带 `--no-proxy-headers`。uvicorn 0.32 默认会改写转发头，只是不写 `--proxy-headers` 关不掉。见「访客 IP」 |
 
 ### 访客 IP
@@ -59,7 +59,7 @@ flowchart LR
 `get_client_ip`：
 
 - 只有直连对端 `request.client.host` 是 `127.0.0.1` 或 `::1` 时，才读取 `X-Forwarded-For`。
-- 从该头最右侧往左看，跳过 `127.0.0.1` 和 `::1`，采用第一个其余地址。这是 Caddy 追加的那一跳。
+- 把所有 `X-Forwarded-For` 头按到达顺序接在一起，再按逗号拆开，从最右侧往左看，跳过 `127.0.0.1` 和 `::1`，采用第一个其余地址。只读第一个头会被伪造的那一头发绕过。
 - 不用最左侧。访客可以自己带一个 `X-Forwarded-For`，Caddy 会把真实对端补在右边；取左边就会按伪造地址分桶，限流可以绕过。
 - 对端不是本机时，忽略这个头，直接用对端地址。
 - 头为空，或里面没有可用地址时，退回对端地址。
@@ -76,7 +76,7 @@ uvicorn 0.32 起默认打开代理头，`forwarded_allow_ips` 默认是 `127.0.0
 
 ## 在虚拟机上部署
 
-单元和下面的命令用占位账号 `your-user`、目录 `/home/your-user`。安装前先把 `jindianyun-chat.service` 里的 `User`、`Group`、`WorkingDirectory`、`ExecStart` 和 `Environment=HOME` 换成运行服务的真实账号和家目录，后文路径跟着改。不要把真实用户名提交回仓库。单元把家目录标成只读，进程需要能读到虚拟环境和密钥文件。
+**MUST REPLACE：** 单元和下面路径里的 `your-user` 只是占位符。安装前必须改成运行服务的真实账号和家目录，不能原样复制。不要把真实用户名提交回仓库。单元把家目录标成只读，进程需要能读到虚拟环境和密钥文件。
 
 需要 Python 3.11 或更新版本，以及 Caddy 2。Caddy 的安装见 <https://caddyserver.com/docs/install>。
 

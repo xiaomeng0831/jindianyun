@@ -40,3 +40,36 @@ def test_inline_backticks_are_not_treated_as_code(app_module):
 def test_off_topic_reply_is_not_a_prompt_leak(app_module):
     assert not app_module.leaks_system_prompt(app_module.OFF_TOPIC_REPLY)
     assert not app_module.looks_like_code(app_module.OFF_TOPIC_REPLY)
+
+
+def test_fenced_station_list_is_allowed(app_module, chat_client):
+    reply = "```\n- 格园1斋 空闲8/共10\n- 治园17斋 空闲15/共20\n```"
+    client = chat_client(reply)
+    assert ask(client, "哪些站点现在比较空？").json()["reply"] == reply
+
+
+def test_english_keyword_sentences_are_allowed(app_module):
+    samples = [
+        "import the occupancy numbers from the page before answering.",
+        "let users filter bike and car stations from the top bar.",
+        "for each station, read the free socket count on the map.",
+        "class the stations by bike or car using the filter.",
+        "function of this map is to find a free charging socket.",
+    ]
+    for sample in samples:
+        assert not app_module.looks_like_code(sample), sample
+
+
+def test_sql_select_from_is_blocked(app_module, chat_client):
+    client = chat_client("SELECT name FROM stations WHERE type = 'bike';")
+    assert ask(client).json()["reply"] == app_module.OFF_TOPIC_REPLY
+
+
+def test_shell_pipe_is_blocked(app_module, chat_client):
+    client = chat_client("$ curl https://example.test/api | jq .")
+    assert ask(client).json()["reply"] == app_module.OFF_TOPIC_REPLY
+
+
+def test_html_tags_are_blocked(app_module, chat_client):
+    client = chat_client("<div>hello</div><script>alert(1)</script>")
+    assert ask(client).json()["reply"] == app_module.OFF_TOPIC_REPLY

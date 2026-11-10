@@ -1,5 +1,5 @@
 # /etc/systemd/system/jindianyun-chat.service
-# 安装前把 your-user 和 /home/your-user 换成运行服务的账号和家目录。
+# MUST REPLACE: your-user 是占位符。安装前改成真实账号，否则服务无法启动。
 [Unit]
 Description=JindianYun web AI chat backend
 After=network-online.target
