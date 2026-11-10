@@ -44,13 +44,13 @@ flowchart LR
 | 浏览器提交 | 最近 12 轮对话（一轮是一条用户消息加一条助手消息，最多 24 条），另加一段站点摘要 |
 | 转给模型 | 服务端只把请求里的最后 12 条消息发给模型。浏览器最多会提交 24 条（12 轮） |
 | 字数 | 上述 12 条正文合计不超过 4000 字；单条最长 2000 字；可选 `context` 最长 2000 字 |
-| 范围 | 系统提示要求只回答北洋园校区充电桩地图和津电云用法；编程、写作、翻译、作业、闲聊要礼貌拒绝。不另接审核服务 |
+| 范围 | 系统提示要求只回答北洋园校区充电桩地图和津电云用法。回复里若出现围栏代码（` ``` `）或明显的源码，服务端换成一句中文拒绝，不把代码返回 |
 | 提示词 | 回复若复述系统提示里的原句，服务端整段换成一句拒绝，不把原文返回 |
 | CORS | 只允许 `https://xiaomeng0831.github.io` |
 | 模型 | `Qwen/Qwen3-8B`，可用环境变量 `SILICONFLOW_MODEL` 覆盖 |
 | 上游地址 | `https://api.siliconflow.cn/v1`，可用 `SILICONFLOW_API_BASE` 覆盖 |
 | 上游超时 | 30 秒。浏览器大约 20 秒后会自己放弃等待 |
-| 监听 | `127.0.0.1:8765`。uvicorn 不要加 `--proxy-headers`，见下面「访客 IP」 |
+| 监听 | `127.0.0.1:8765`，启动命令必须带 `--no-proxy-headers`。uvicorn 0.32 默认会改写转发头，只是不写 `--proxy-headers` 关不掉。见「访客 IP」 |
 
 ### 访客 IP
 
@@ -64,7 +64,7 @@ flowchart LR
 - 对端不是本机时，忽略这个头，直接用对端地址。
 - 头为空，或里面没有可用地址时，退回对端地址。
 
-uvicorn 的 `--proxy-headers` 会在应用之前改写 `request.client`，并把端口记成 `0`。改写之后对端不再是 `127.0.0.1`，上面的检查就不会读转发头。单元和本地启动命令都不要加这个开关，并保持 uvicorn 只监听 `127.0.0.1`。
+uvicorn 0.32 起默认打开代理头，`forwarded_allow_ips` 默认是 `127.0.0.1`。不写 `--proxy-headers` 也会把 `request.client` 改成转发地址，端口记成 `0`（日志里会看到类似 `10.0.0.9:0`）。改写之后对端不再是本机，`get_client_ip` 就不会读 `X-Forwarded-For`。启动命令必须写上 `--no-proxy-headers`，并只监听 `127.0.0.1`。只是省略 `--proxy-headers` 关不掉这层改写。
 
 成功的响应不带限额头。限流和全站上限才返回 429。
 
@@ -203,10 +203,10 @@ python3 -m venv .venv
 install -m 600 /dev/null "$HOME/.sf_key"
 # 用编辑器打开 "$HOME/.sf_key"，写入密钥后保存。
 chmod 600 "$HOME/.sf_key"
-.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765
+.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765 --no-proxy-headers
 ```
 
-不要加 `--proxy-headers`。另开一个终端执行 `curl -fsS http://127.0.0.1:8765/healthz`。浏览器里的地图小组件仍会因为 CORS 叫不到这个地址；页面行为由 `npm run test:e2e` 里拦截 `CHAT_API_URL` 的用例覆盖，那些用例不会访问线上接口。
+必须带 `--no-proxy-headers`。uvicorn 0.32 默认会改写 `X-Forwarded-For`，省略这个参数并不会关闭改写。另开一个终端执行 `curl -fsS http://127.0.0.1:8765/healthz`。浏览器里的地图小组件仍会因为 CORS 叫不到这个地址；页面行为由 `npm run test:e2e` 里拦截 `CHAT_API_URL` 的用例覆盖，那些用例不会访问线上接口。
 
 改完 `app.py` 后可以先做语法检查（不需要安装依赖）：
 
@@ -232,7 +232,7 @@ python3 -m venv .venv
 sudo cp /home/your-user/jindianyun-chat/app.py /home/your-user/jindianyun-chat/app.py.bak
 sudo cp /etc/systemd/system/jindianyun-chat.service /etc/systemd/system/jindianyun-chat.service.bak
 sudo -u your-user cp server/app.py /home/your-user/jindianyun-chat/app.py
-# 单元里的账号改成这台机器的真实用户后再安装。这次去掉了 --proxy-headers，必须一起更新单元。
+# 单元里的账号改成这台机器的真实用户后再安装。ExecStart 必须带 --no-proxy-headers。
 sudo cp server/jindianyun-chat.service /etc/systemd/system/jindianyun-chat.service
 sudo systemctl daemon-reload
 sudo systemctl restart jindianyun-chat.service
@@ -241,7 +241,7 @@ journalctl -u jindianyun-chat.service -n 30 --no-pager
 
 确认日志里有 `chat backend ready`，并且没有密钥。再按上一节 `curl` 一次 `/api/chat`。若线上 Caddyfile 没有改过域名，不必重装示例文件。
 
-回滚时同时恢复应用和单元，否则旧程序又会在 `--proxy-headers` 改写对端之后看不到 `127.0.0.1`：
+回滚时同时恢复应用和单元。没有 `--no-proxy-headers` 时，uvicorn 0.32 仍会改写对端，应用就看不到 `127.0.0.1`：
 
 ```bash
 sudo cp /home/your-user/jindianyun-chat/app.py.bak /home/your-user/jindianyun-chat/app.py

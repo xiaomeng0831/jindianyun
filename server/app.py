@@ -56,6 +56,21 @@ SYSTEM_PROMPT = (
 
 CONTEXT_PREFIX = "以下是当前地图或充电站信息，请据此回答，不要编造：\n"
 LEAK_REPLY = "抱歉，这部分属于助手的内部设置，无法提供。我可以帮你查校园充电桩的位置、类型和使用方法。"
+OFF_TOPIC_REPLY = "抱歉，我只能回答校园充电桩和这张地图怎么用，不能提供代码。请换个相关的问题。"
+_CODE_LINE = re.compile(
+    r"(?m)^[ \t]*(?:"
+    r"def +\w+ *\(|"
+    r"class +\w+\s*[:(]|"
+    r"import +[A-Za-z_]|"
+    r"from +[A-Za-z_][\w.]* +import |"
+    r"function +[A-Za-z_]\w* *\(|"
+    r"(?:const|let|var) +[A-Za-z_]\w* *[=:]|"
+    r"#include\s*[<\"]|"
+    r"public +(?:class|static) |"
+    r"fn +[A-Za-z_]\w* *\(|"
+    r"for +\w+ +in +.+:"
+    r")"
+)
 # 这些句子本身就是公开信息，正常回答里也会出现，不算泄露。
 PUBLIC_PROMPT_SENTENCES = {"地图上的点位类型包括：自行车充电点、汽车充电点、锂电柜"}
 LEAK_WINDOW = 12  # 连续 12 个有效字符与系统提示一致即视为泄露
@@ -102,6 +117,13 @@ PROTECTED_WINDOWS = _protected_windows()
 def leaks_system_prompt(reply: str) -> bool:
     norm = _normalize(reply)
     return any(norm[i : i + LEAK_WINDOW] in PROTECTED_WINDOWS for i in range(len(norm) - LEAK_WINDOW + 1))
+
+
+def looks_like_code(reply: str) -> bool:
+    """Campus charging answers do not need source code. Fences and statement-shaped lines only."""
+    if "```" in reply:
+        return True
+    return _CODE_LINE.search(reply) is not None
 
 
 logging.basicConfig(
@@ -263,6 +285,10 @@ def get_client_ip(request: Request) -> str:
     right and skip those loopback hops. The leftmost entry is client-supplied
     and must not be used. Any other peer is used as-is, so a spoofed header
     from outside the local proxy cannot choose the bucket.
+
+    Uvicorn 0.32 enables proxy headers unless started with --no-proxy-headers.
+    That middleware rewrites this peer (port 0) before the app runs, so the
+    loopback branch never sees 127.0.0.1.
     """
     raw_peer = request.client.host if request.client and request.client.host else ""
     peer = _normalize_ip(raw_peer) or raw_peer or "unknown"
@@ -367,6 +393,9 @@ async def chat(payload: ChatRequest, request: Request):
     if leaks_system_prompt(reply):
         log.warning("blocked system-prompt leak ip=%s", ip)
         return {"reply": LEAK_REPLY}
+    if looks_like_code(reply):
+        log.warning("blocked code reply ip=%s", ip)
+        return {"reply": OFF_TOPIC_REPLY}
     return {"reply": reply}
 
 

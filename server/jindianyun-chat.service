@@ -16,9 +16,10 @@ Environment=HOME=/home/your-user
 # 可选：Environment=CHAT_RATE_PER_MIN=10
 # 可选：Environment=CHAT_RATE_PER_DAY=100
 # 可选：Environment=CHAT_GLOBAL_DAILY_CAP=1000
-# 不要加 --proxy-headers。应用只在直连对端是 127.0.0.1 / ::1 时读取
-# X-Forwarded-For；该开关会先改写 request.client（端口记成 0），检查就失效。
-ExecStart=/home/your-user/jindianyun-chat/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765
+# uvicorn 0.32 默认开启代理头（forwarded_allow_ips 默认 127.0.0.1）。
+# 不写 --proxy-headers 也会把 request.client 改成转发地址，端口记成 0，
+# 应用就看不到本机对端。必须显式加上 --no-proxy-headers。
+ExecStart=/home/your-user/jindianyun-chat/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765 --no-proxy-headers
 Restart=on-failure
 RestartSec=5
 MemoryMax=250M
