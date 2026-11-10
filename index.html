@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>津电云 · 天津大学北洋园校区充电桩实时地图</title>
-  <meta name="description" content="天津大学北洋园校区电动自行车与电动汽车充电桩实时状态地图（模拟数据，非官方）。">
+  <meta name="description" content="天津大学北洋园校区电动自行车与电动汽车充电桩实时状态地图，附带问答助手（模拟数据，非官方）。">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
@@ -94,11 +94,11 @@
   </main>
 
   <div id="chat-widget" class="chat-widget">
-    <section id="chat-panel" class="chat-panel" role="dialog" aria-labelledby="chat-title" aria-hidden="true" hidden>
+    <section id="chat-panel" class="chat-panel" role="dialog" aria-modal="false" aria-labelledby="chat-title" aria-describedby="chat-subtitle" aria-hidden="true" hidden>
       <header class="chat-header">
         <div class="chat-heading">
           <h2 id="chat-title" class="chat-title">津电云助手</h2>
-          <p class="chat-subtitle">问问站点，或怎么使用这张地图</p>
+          <p id="chat-subtitle" class="chat-subtitle">问问站点，或怎么使用这张地图</p>
         </div>
         <button id="chat-clear" class="chat-text-btn" type="button">清空</button>
         <button id="chat-close" class="chat-close" type="button" aria-label="关闭助手">×</button>
@@ -114,14 +114,14 @@
         </div>
       </div>
       <p id="chat-status" class="visually-hidden" role="status" aria-live="polite"></p>
-      <p class="chat-note">回答仅供参考，站点状态以地图为准。</p>
+      <p id="chat-note" class="chat-note">回答仅供参考，站点状态以地图为准。</p>
       <form id="chat-form" class="chat-form">
         <label class="visually-hidden" for="chat-input">向津电云助手提问</label>
-        <textarea id="chat-input" class="chat-input" rows="1" maxlength="800" placeholder="输入问题，Enter 发送" enterkeyhint="send"></textarea>
+        <textarea id="chat-input" class="chat-input" rows="1" maxlength="800" placeholder="输入问题，Enter 发送" enterkeyhint="send" aria-describedby="chat-note"></textarea>
         <button id="chat-send" class="chat-send" type="submit" disabled>发送</button>
       </form>
     </section>
-    <button id="chat-launcher" class="chat-launcher" type="button" aria-expanded="false" aria-controls="chat-panel" title="问问津电云">
+    <button id="chat-launcher" class="chat-launcher" type="button" aria-expanded="false" aria-haspopup="dialog" aria-controls="chat-panel" aria-label="打开津电云助手" title="问问津电云">
       <svg class="chat-icon chat-icon-open" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M5.5 6.5h13a1.5 1.5 0 0 1 1.5 1.5v7.2a1.5 1.5 0 0 1-1.5 1.5H12l-3.4 2.6c-.46.35-1.1-.02-1.1-.58V16.7H5.5A1.5 1.5 0 0 1 4 15.2V8a1.5 1.5 0 0 1 1.5-1.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
       </svg>

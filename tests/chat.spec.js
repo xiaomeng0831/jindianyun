@@ -123,7 +123,7 @@ test('接口失败时显示中文提示，且错误不会被当作助手回复�
 
   await page.locator('#chat-input').fill('再试一次');
   await page.locator('#chat-send').click();
-  await expect(page.locator('.chat-bubble.is-error').last()).toContainText('助手暂时连不上，请检查网络后再试。');
+  await expect(page.locator('.chat-bubble.is-error').last()).toContainText('助手服务暂时连不上，请稍后再试。地图仍可正常使用。');
   expect(calls).toBe(2);
 });
 
@@ -169,6 +169,36 @@ test('对话保存在 sessionStorage，清空后删除，请求只带最近 12 �
   await expect(page.locator('#chat-empty')).toBeVisible();
   const stored = await page.evaluate(() => sessionStorage.getItem('jindianyun:chat'));
   expect(stored).toBeNull();
+});
+
+test('服务端的中文错误会显示，过长或非中文错误仍用固定提示', async ({ page }) => {
+  let calls = 0;
+  await page.route(CHAT_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: CORS });
+      return;
+    }
+    calls += 1;
+    if (calls === 1) {
+      await fulfillChat(route, 400, { error: '输入过长，请将对话内容控制在 4000 字以内' });
+      return;
+    }
+    await fulfillChat(route, 502, { error: 'upstream token leaked <script>' });
+  });
+
+  await ready(page);
+  await page.locator('#chat-launcher').click();
+  await expect(page.locator('#chat-panel')).toHaveAttribute('aria-modal', 'false');
+  await page.locator('#chat-input').fill('太长了');
+  await page.locator('#chat-send').click();
+  await expect(page.locator('.chat-bubble.is-error')).toContainText('输入过长，请将对话内容控制在 4000 字以内');
+
+  await page.locator('#chat-input').fill('再试');
+  await page.locator('#chat-send').click();
+  const last = page.locator('.chat-bubble.is-error').last();
+  await expect(last).toContainText('助手暂时没能回答，请稍后再试。');
+  await expect(last).not.toContainText('token');
+  await expect(last).not.toContainText('script');
 });
 
 test('损坏的会话记录不会挡住地图，助手按钮也不遮挡缩放和图例', async ({ page }) => {

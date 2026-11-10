@@ -2057,15 +2057,31 @@ body.app-ready .chat-widget {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--chat-user-bg);
+  color: var(--chat-user-fg);
   box-shadow: var(--shadow-float);
   cursor: pointer;
   transition: background 0.16s ease, transform 0.16s ease;
 }
 
 .chat-launcher:hover {
-  background: var(--accent-strong);
+  background: var(--chat-user-bg-hover);
+}
+
+.chat-launcher:focus-visible,
+.chat-panel :focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.chat-panel :focus-visible {
+  outline-offset: -2px;
+}
+
+/* 发送按钮的底色是绿色。焦点环画在按钮外侧的面板上，避免和绿色融在一起。 */
+.chat-send:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
 .chat-launcher:active {
@@ -2134,8 +2150,8 @@ body.app-ready .chat-widget {
 
 .chat-subtitle {
   margin: 2px 0 0;
-  color: var(--text-3);
-  font-size: 0.68rem;
+  color: var(--text-2);
+  font-size: 0.75rem;
   line-height: 1.35;
 }
 
@@ -2307,8 +2323,8 @@ body.app-ready .chat-widget {
   flex: none;
   margin: 0;
   padding: 0 14px 2px;
-  color: var(--text-3);
-  font-size: 0.66rem;
+  color: var(--text-2);
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 

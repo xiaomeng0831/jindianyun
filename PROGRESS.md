@@ -61,6 +61,20 @@
   - **真实数据 HTTP 适配器与代理脚手架**：新增 `js/http-adapter.js`（单飞请求、超时中断、页面不可见暂停、指数退避、Stale-if-Error、混合回退 `fallbackAdapter`），支持通过 `?adapter=http` 或 `?endpoint=...` 启用；新增 `scripts/cqt_proxy.mjs` 与 `.env.example`（零依赖 Node.js 18+ 本地代理，含 60s 缓存与 `--mock` 联调模式）
   - **文档与预览图同步**：更新 `README.md`、`docs/real-data.md`，并通过 Ego Lite 浏览器实测生成 `docs/screenshots/` 四张桌面/移动端浅色与深色模式截图
 
+- **2026-11-10 悬浮问答助手**（squash `12caabd`，PR #2，已在 GitHub Pages）
+  - `js/chat.js`、`index.html`、`css/style.css`：地图就绪后出现悬浮问答。地址常量是 `CHAT_API_URL`
+  - 请求带最近 12 轮对话和当前站点摘要；回复按纯文本渲染；记录只在 `sessionStorage`
+  - `tests/chat.spec.js` 拦截接口做冒烟，不访问线上后端
+  - 线上路径：浏览器 → Caddy（Let's Encrypt，反代到 `127.0.0.1:8765`）→ systemd 服务 `jindianyun-chat.service` 里的 uvicorn / FastAPI → SiliconFlow `Qwen/Qwen3-8B`
+  - 限额：每 IP 每分钟 10 次、每天 100 次；服务端把最后 12 条消息发给模型，正文字符合计不超过 4000。CORS 只允许 `https://xiaomeng0831.github.io`
+  - 密钥只在服务器文件 `~/.sf_key`（可用 `SILICONFLOW_KEY_FILE` 改路径）
+
+- **2026-11-10 文档与参考后端**
+  - `server/`：与线上一致的 `app.py` / `requirements.txt`（仓库内无密钥）、systemd 单元、Caddy 示例（域名和 ACME 邮箱是占位符）
+  - README、PROGRESS、CONTRIBUTING、`server/README.md` 写明上面的架构和部署步骤
+  - 进度更早处写过「本地 8765 静态服务」，那是当时预览静态页用的端口。现在 `127.0.0.1:8765` 是问答进程
+  - 小组件在服务不可达时改为说明地图仍可使用；能安全显示的中文接口错误会直接展示
+
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）
 - [x] 18+8 个点位坐标（按命名建筑 + 北洋维基校正）
@@ -71,7 +85,8 @@
 - [x] 分类筛选栏与地图缩放/复位浮动控件
 - [x] 电动汽车 6 站预估插口数补齐（标记 `socketsApprox: true`）
 - [x] 真实数据 HTTP 适配器（`js/http-adapter.js`）与本地代理脚手架（`scripts/cqt_proxy.mjs`）
-- [x] README / LICENSE / 预览截图
+- [x] 悬浮问答助手（Pages 上的小组件 + 虚拟机上的 FastAPI；密钥不入库）
+- [x] README / LICENSE / 预览截图（含助手收起与展开）
 - [x] **发布到 GitHub**：<https://github.com/xiaomeng0831/jindianyun>
   - 线上站点：<https://xiaomeng0831.github.io/jindianyun/>（GitHub Pages，main / root）
   - 推送走 SSH（`~/.ssh/id_ed25519` 已加入账号，标题 `MacBook Pro (Claude Code)`）
@@ -79,7 +94,7 @@
 
 ## 关键决策与坑
 - **数据源**：模拟数据 + 可插拔适配器（用户选定）。真实接口（常青藤智能充电 m.sgdq123.com:8601）只留接口位，不实现。
-- **技术形态**：纯前端静态站（用户选定），零后端、零构建，GitHub Pages 直接部署。
+- **技术形态**：地图是纯前端静态站，GitHub Pages 直接部署，页面本身零构建。问答助手另有一台小型 Linux 虚拟机上的后端（Caddy + `jindianyun-chat.service`），不随 Pages 发布。
 - **底图**：不用高德/百度（要 key），用 OSM 离线数据自绘。
 - **OSM 关系漏建筑**：`osm_raw.json` 只有 way；郑东图书馆和 平园21–24斋 是 multipolygon **relation**，初次提取漏掉。
   已用 OSM API `relation/{id}/full.json` 取外环补齐（中间文件 `data/extra_buildings.json`）。
