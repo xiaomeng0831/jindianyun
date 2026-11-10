@@ -33,6 +33,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
 
 # 本地环境与临时文件
 .env
