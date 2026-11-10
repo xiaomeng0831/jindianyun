@@ -1875,8 +1875,17 @@ ul.search-results li {
     display: none;
   }
 
+  .site-footer {
+    align-items: stretch;
+  }
+
   .footer-disclaimer {
+    flex: 1 1 auto;
+    min-width: 0;
     max-width: 100%;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   /* 底部抽屉 */
@@ -1938,7 +1947,7 @@ ul.search-results li {
 
   #legend {
     right: 10px;
-    bottom: calc(36px + env(safe-area-inset-bottom));
+    bottom: calc(58px + env(safe-area-inset-bottom));
     left: 10px;
     justify-content: center;
     max-width: none;
