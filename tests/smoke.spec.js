@@ -98,3 +98,36 @@ test('390 宽视口下收藏筛选完整可见', async ({ page }) => {
   expect(metrics.chipLeft).toBeGreaterThanOrEqual(metrics.barLeft - 1);
   expect(metrics.chipRight).toBeLessThanOrEqual(metrics.barRight + 1);
 });
+
+test('窄屏页脚免责声明完整换行，不被截成省略号', async ({ page }) => {
+  const expected = '本站数据为模拟数据，非官方信息，仅供学习与参考；实际状态请以学校及运营方公布的信息为准。';
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await expect(page.locator('body')).toHaveClass(/app-ready/, { timeout: 15_000 });
+    const disclaimer = page.locator('.footer-disclaimer');
+    await expect(disclaimer).toHaveText(expected);
+    const box = await disclaimer.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return {
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        whiteSpace: style.whiteSpace,
+        overflowX: style.overflowX,
+        textOverflow: style.textOverflow,
+        bottom: rect.bottom,
+        height: rect.height,
+      };
+    });
+    expect(box.whiteSpace).not.toBe('nowrap');
+    expect(box.overflowX).not.toBe('hidden');
+    expect(box.textOverflow).not.toBe('ellipsis');
+    expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+    expect(box.height).toBeGreaterThan(20);
+    expect(box.bottom).toBeLessThanOrEqual(viewport.height + 1);
+  }
+});

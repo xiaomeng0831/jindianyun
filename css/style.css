@@ -1875,8 +1875,17 @@ ul.search-results li {
     display: none;
   }
 
+  .site-footer {
+    align-items: stretch;
+  }
+
   .footer-disclaimer {
+    flex: 1 1 auto;
+    min-width: 0;
     max-width: 100%;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   /* 底部抽屉 */
@@ -1938,7 +1947,7 @@ ul.search-results li {
 
   #legend {
     right: 10px;
-    bottom: calc(36px + env(safe-area-inset-bottom));
+    bottom: calc(58px + env(safe-area-inset-bottom));
     left: 10px;
     justify-content: center;
     max-width: none;
@@ -2033,7 +2042,7 @@ ul.search-results li {
   position: fixed;
   left: calc(12px + env(safe-area-inset-left));
   bottom: calc(124px + env(safe-area-inset-bottom) + var(--chat-vv-offset, 0px));
-  z-index: 48;
+  z-index: 70;
   display: none;
   width: max-content;
   max-width: calc(100vw - 24px);
@@ -2294,6 +2303,22 @@ body.app-ready .chat-widget {
   background: var(--surface-3);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.86em;
+}
+
+.chat-bubble pre {
+  margin: 6px 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--surface-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-bubble pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 0.8em;
 }
 
 .chat-dots {

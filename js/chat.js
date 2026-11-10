@@ -2,7 +2,7 @@
  * 津电云 · 悬浮问答助手
  * ------------------------------------------------------------------
  * 零构建、无密钥。把最近若干轮对话和可选的站点摘要 POST 到
- * CHAT_API_URL，回复只按纯文本（加粗 / 行内代码 / 换行）渲染。
+ * CHAT_API_URL，回复按纯文本渲染（换行、加粗、行内代码、围栏代码块）。
  * 对话记录只放在 sessionStorage，关闭标签页即消失。
  */
 
@@ -14,7 +14,8 @@ const STORAGE_KEY = 'jindianyun:chat';
 const MAX_TURNS = 12;
 const MAX_REQUEST_MESSAGES = MAX_TURNS * 2;
 const MAX_STORED_MESSAGES = 40;
-const REQUEST_TIMEOUT_MS = 20000;
+/** 服务端等待上游最多 30 秒。这里多留 5 秒，让已经生成完的回复或服务端的超时说明能够抵达。 */
+export const REQUEST_TIMEOUT_MS = 35000;
 const MAX_INPUT_LENGTH = 800;
 const MAX_REPLY_LENGTH = 4000;
 
@@ -84,13 +85,22 @@ export function mountChatWidget(root, options = {}) {
     } catch { /* 隐私模式或配额满时只保留当前页内存 */ }
   }
 
-  function render() {
+  function render(scroll) {
     const bubbles = log.querySelectorAll('.chat-bubble');
     bubbles.forEach((node) => node.remove());
     empty.hidden = messages.length > 0;
     for (const message of messages) log.append(renderBubble(message));
     if (pending) log.append(pendingNode);
-    log.scrollTop = log.scrollHeight;
+    if (scroll === 'reply-start') {
+      const replies = log.querySelectorAll('.chat-bubble.is-assistant');
+      const last = replies[replies.length - 1];
+      if (last) {
+        const delta = last.getBoundingClientRect().top - log.getBoundingClientRect().top;
+        log.scrollTop += delta;
+      }
+    } else {
+      log.scrollTop = log.scrollHeight;
+    }
     sendButton.disabled = pending || !input.value.trim();
     panel.setAttribute('aria-busy', pending ? 'true' : 'false');
   }
@@ -101,16 +111,18 @@ export function mountChatWidget(root, options = {}) {
     launcher.setAttribute('aria-expanded', 'true');
     launcher.setAttribute('aria-label', '关闭津电云助手');
     root.classList.add('is-open');
+    window.dispatchEvent(new CustomEvent('jdy-chat-toggle', { detail: { open: true } }));
     render();
     window.requestAnimationFrame(() => input.focus());
   }
 
-  function closePanel() {
+  function closePanel(options = {}) {
     panel.hidden = true;
     panel.setAttribute('aria-hidden', 'true');
     launcher.setAttribute('aria-expanded', 'false');
     launcher.setAttribute('aria-label', '打开津电云助手');
     root.classList.remove('is-open');
+    if (options.restoreFocus === false) return;
     if (getComputedStyle(launcher).visibility === 'hidden') {
       document.getElementById('map')?.focus({ preventScroll: true });
     } else {
@@ -143,7 +155,7 @@ export function mountChatWidget(root, options = {}) {
     resizeInput();
     pending = true;
     persist();
-    render();
+    render('bottom');
     setStatus(COPY.thinking);
     void requestReply();
   }
@@ -167,6 +179,11 @@ export function mountChatWidget(root, options = {}) {
       messages.push({ role: 'assistant', content: reply });
       persist();
       setStatus(reply);
+      if (gen === generation) {
+        pending = false;
+        render('reply-start');
+      }
+      return;
     } catch (error) {
       if (gen !== generation) return;
       const text = messageForFailure(error, controller.signal.aborted);
@@ -175,9 +192,9 @@ export function mountChatWidget(root, options = {}) {
     } finally {
       window.clearTimeout(timer);
       if (activeController === controller) activeController = null;
-      if (gen === generation) {
+      if (gen === generation && pending) {
         pending = false;
-        render();
+        render('bottom');
       }
     }
   }
@@ -188,6 +205,10 @@ export function mountChatWidget(root, options = {}) {
       .slice(-MAX_REQUEST_MESSAGES)
       .map((message) => ({ role: message.role, content: message.content }));
   }
+
+  window.addEventListener('jdy-chat-toggle', (event) => {
+    if (!event.detail?.open && !panel.hidden) closePanel({ restoreFocus: false });
+  });
 
   launcher.setAttribute('aria-label', '打开津电云助手');
   launcher.addEventListener('click', togglePanel);
@@ -261,10 +282,27 @@ function renderBubble(message) {
   return bubble;
 }
 
-/** 先按换行拆开，再识别 **加粗** 与 `代码`。全程只用文本节点，不插入原始 HTML。 */
+/** 围栏代码块、加粗和行内代码都只用文本节点，不插入原始 HTML。 */
 function appendFormatted(parent, text) {
-  const source = String(text);
-  const lines = source.split('\n');
+  const source = String(text).replace(/\r\n/g, '\n');
+  const fence = /```([^\n`]*)\n?([\s\S]*?)```/g;
+  let last = 0;
+  let match = fence.exec(source);
+  while (match) {
+    appendInline(parent, source.slice(last, match.index));
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.textContent = match[2].replace(/\n$/, '');
+    pre.append(code);
+    parent.append(pre);
+    last = match.index + match[0].length;
+    match = fence.exec(source);
+  }
+  appendInline(parent, source.slice(last));
+}
+
+function appendInline(parent, text) {
+  const lines = String(text).split('\n');
   lines.forEach((line, index) => {
     if (index > 0) parent.append(document.createTextNode('\n'));
     const pattern = /\*\*([^*\n]+)\*\*|`([^`\n]+)`/g;

@@ -23,7 +23,9 @@ flowchart LR
 
 | 文件 | 作用 |
 | --- | --- |
-| `app.py` | FastAPI 应用。只监听本机，关闭了自带的 `/docs` |
+| `app.py` | FastAPI 应用。只监听本机，关闭了自带的 `/docs`。会 import `facts.py` |
+| `facts.py` | 事实表。部署时必须和 `app.py` 放在同一目录，否则进程起不来 |
+| `DEPLOY_FILES` | 要复制到虚拟机的 Python 文件名单，一行一个。测试按这份名单导入 |
 | `requirements.txt` | 线上使用的依赖版本 |
 | `requirements-dev.txt` | 只含 pytest，给离线测试用，不要装进线上环境 |
 | `tests/` | 不访问网络、不读真实密钥的 pytest |
@@ -43,13 +45,13 @@ flowchart LR
 | 浏览器单条 | 输入框最多 800 字（`index.html` 的 `maxlength` 与 `js/chat.js` 的 `MAX_INPUT_LENGTH`） |
 | 浏览器提交 | 最近 12 轮对话（一轮是一条用户消息加一条助手消息，最多 24 条），另加一段站点摘要 |
 | 转给模型 | 服务端只把请求里的最后 12 条消息发给模型。浏览器最多会提交 24 条（12 轮） |
-| 字数 | 上述 12 条正文合计不超过 4000 字；单条最长 2000 字；可选 `context` 最长 2000 字 |
+| 字数 | 上述 12 条正文合计不超过 4000 字；单条最长 2000 字。结构化 `context` 最长 12000 字（页面实际大约 9.3k：26 个站加楼宇中心）。不是 JSON 的自由文本只留 2000 字，并当作数据而不是系统提示 |
 | 范围 | 系统提示要求只回答北洋园校区充电桩地图和津电云用法。围栏里的中文名单可以保留；围栏或正文里若是源码、SQL、shell 或 HTML，整段换成中文拒绝 |
 | 提示词 | 回复若复述系统提示里的原句，服务端整段换成一句拒绝，不把原文返回 |
 | CORS | 只允许 `https://xiaomeng0831.github.io` |
 | 模型 | `Qwen/Qwen3-8B`，可用环境变量 `SILICONFLOW_MODEL` 覆盖 |
 | 上游地址 | `https://api.siliconflow.cn/v1`，可用 `SILICONFLOW_API_BASE` 覆盖 |
-| 上游超时 | 连接最多 5 秒、读取最多 25 秒，相加 30 秒，必须小于浏览器等待。输出上限 1200 token，避免长名单被截断 |
+| 上游超时 | 连接最多 5 秒、读取最多 25 秒，相加 30 秒。浏览器等待 35 秒，大于这 30 秒。输出上限 1200 token |
 | 监听 | `127.0.0.1:8765`，启动命令必须带 `--no-proxy-headers`。uvicorn 0.32 默认会改写转发头，只是不写 `--proxy-headers` 关不掉。见「访客 IP」 |
 
 ### 访客 IP
@@ -69,6 +71,8 @@ uvicorn 0.32 起默认打开代理头，`forwarded_allow_ips` 默认是 `127.0.0
 成功的响应不带限额头。限流和全站上限才返回 429。
 
 当前没有登录或 Turnstile。如果以后滥用继续增加，可以再在 Caddy 或应用前加 Turnstile；那不是现在这条链路的一部分。
+
+回答不使用流式输出，成功时仍是一整段 `{"reply":"..."}`。原先浏览器 20 秒就放弃，上游却允许 30 秒，所以二十多秒的长回答会在页面上显示成超时。现在浏览器多等 5 秒。锂电柜名单、空闲排序、快慢充备注、车位是否预估，以及用户提到的楼宇最近的站点，都由程序算好写进事实表，模型只转述这些句子。收藏只在本机 `localStorage`（键名 `jindianyun:favorites`），没有个人账户。
 
 密钥默认从服务用户家目录的 `~/.sf_key` 读取。要换路径，设置环境变量 `SILICONFLOW_KEY_FILE`（在 systemd 单元里加 `Environment=` 即可）。文件内容是一行密钥，权限 `600`，属主是运行服务的用户。
 
@@ -90,9 +94,10 @@ sudo -u your-user python3 -m venv /home/your-user/jindianyun-chat/.venv
 sudo -u your-user /home/your-user/jindianyun-chat/.venv/bin/pip install \
   -r server/requirements.txt
 sudo -u your-user cp server/app.py /home/your-user/jindianyun-chat/app.py
+sudo -u your-user cp server/facts.py /home/your-user/jindianyun-chat/facts.py
 ```
 
-后两条里的 `server/requirements.txt` 和 `server/app.py` 指本仓库里的文件。在仓库根目录执行，或写成这两个文件的实际路径。
+`server/requirements.txt`、`server/app.py` 和 `server/facts.py` 指本仓库里的文件。名单以 `DEPLOY_FILES` 为准，少复制一个进程会在 import 时退出并反复重启。在仓库根目录执行，或写成这些文件的实际路径。
 
 ### 2. 写入密钥
 
@@ -230,8 +235,10 @@ python3 -m venv .venv
 
 ```bash
 sudo cp /home/your-user/jindianyun-chat/app.py /home/your-user/jindianyun-chat/app.py.bak
+sudo cp /home/your-user/jindianyun-chat/facts.py /home/your-user/jindianyun-chat/facts.py.bak
 sudo cp /etc/systemd/system/jindianyun-chat.service /etc/systemd/system/jindianyun-chat.service.bak
 sudo -u your-user cp server/app.py /home/your-user/jindianyun-chat/app.py
+sudo -u your-user cp server/facts.py /home/your-user/jindianyun-chat/facts.py
 # 单元里的账号改成这台机器的真实用户后再安装。ExecStart 必须带 --no-proxy-headers。
 sudo cp server/jindianyun-chat.service /etc/systemd/system/jindianyun-chat.service
 sudo systemctl daemon-reload
@@ -245,6 +252,7 @@ journalctl -u jindianyun-chat.service -n 30 --no-pager
 
 ```bash
 sudo cp /home/your-user/jindianyun-chat/app.py.bak /home/your-user/jindianyun-chat/app.py
+sudo cp /home/your-user/jindianyun-chat/facts.py.bak /home/your-user/jindianyun-chat/facts.py
 sudo cp /etc/systemd/system/jindianyun-chat.service.bak /etc/systemd/system/jindianyun-chat.service
 sudo systemctl daemon-reload
 sudo systemctl restart jindianyun-chat.service
