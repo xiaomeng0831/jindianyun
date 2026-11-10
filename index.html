@@ -104,6 +104,11 @@
   </div>
 
   <noscript>
+    <style>
+      #app-loading { display: none !important; }
+      /* 无脚本时浏览器会画出 canvas 的后备文字，避免它压在页眉上 */
+      #map { color: transparent; font-size: 0; }
+    </style>
     <p class="noscript-note">本站需要 JavaScript 才能显示地图，请在浏览器中启用后刷新页面。</p>
   </noscript>
 

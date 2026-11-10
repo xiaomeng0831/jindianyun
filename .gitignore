@@ -17,8 +17,12 @@ Desktop.ini
 *.swo
 *~
 
-# Node 工具（本站本身零构建，仅脚本可能需要）
+# Node 工具（本站本身零构建，仅可选的 Playwright 冒烟测试需要）
 node_modules/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

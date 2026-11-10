@@ -237,6 +237,7 @@ export class StationPanel {
     this._timer = null;
     this._dom = null;
     this._refreshing = false;
+    this._liveMode = 'live';
 
     this._handleClick = this._handleClick.bind(this);
     this._handleKeydown = this._handleKeydown.bind(this);
@@ -308,7 +309,7 @@ export class StationPanel {
       <div class="panel-foot">
         <div class="live-status" role="status">
           <span class="live-dot" aria-hidden="true"></span>
-          <span class="live-text">实时刷新</span>
+          <span class="live-text" data-mode="live">实时刷新</span>
           <span class="live-sep" aria-hidden="true">·</span>
           <span class="updated">等待实时数据</span>
         </div>
@@ -339,6 +340,7 @@ export class StationPanel {
       trendBars: q('.trend-bars'),
       trendAdvice: q('.trend-advice'),
       note: q('.station-note'),
+      liveStatus: q('.live-status'),
       liveText: q('.live-text'),
       updated: q('.updated'),
       refreshBtn: q('.refresh-btn'),
@@ -392,6 +394,7 @@ export class StationPanel {
     this._station = station;
     this._detail = detail;
     this._meta = { ...meta };
+    this._applyLiveMode(meta);
     if (!isSameStation) this._selectedNo = null;
     this._lastDataAt = toTimestamp(meta.updatedAt) ?? toTimestamp(detail?.updatedAt) ?? Date.now();
 
@@ -407,6 +410,7 @@ export class StationPanel {
   setDetail(detail, meta = {}) {
     this._detail = detail;
     this._meta = { ...this._meta, ...meta };
+    this._applyLiveMode(meta);
     const ts = toTimestamp(meta.updatedAt) ?? toTimestamp(detail?.updatedAt);
     if (ts != null) this._lastDataAt = ts;
     if (!this._station) return;
@@ -415,15 +419,42 @@ export class StationPanel {
 
   setMeta(meta = {}) {
     this._meta = { ...this._meta, ...meta };
+    this._applyLiveMode(meta);
     if (!this._station) return;
     this._renderFooter();
+  }
+
+  /** @param {'live'|'fallback'} mode */
+  setLiveMode(mode) {
+    this._liveMode = mode === 'fallback' ? 'fallback' : 'live';
+    this._syncLiveLabel();
   }
 
   setRefreshing(refreshing) {
     this._refreshing = Boolean(refreshing);
     this.root.classList.toggle('is-refreshing', this._refreshing);
     this._dom?.refreshBtn?.classList.toggle('is-spinning', this._refreshing);
-    if (this._dom?.liveText) this._dom.liveText.textContent = this._refreshing ? '刷新中…' : '实时刷新';
+    this._syncLiveLabel();
+  }
+
+  _applyLiveMode(meta) {
+    if (meta?.liveMode === 'fallback' || meta?.liveMode === 'live') {
+      this._liveMode = meta.liveMode;
+    }
+  }
+
+  _syncLiveLabel() {
+    const dom = this._dom;
+    if (!dom?.liveText) return;
+    const fallback = this._liveMode === 'fallback';
+    dom.liveStatus?.classList.toggle('is-fallback', fallback && !this._refreshing);
+    if (this._refreshing) {
+      dom.liveText.textContent = '刷新中…';
+      dom.liveText.dataset.mode = 'refreshing';
+      return;
+    }
+    dom.liveText.textContent = fallback ? '接口不可用，已使用模拟数据' : '实时刷新';
+    dom.liveText.dataset.mode = fallback ? 'fallback' : 'live';
   }
 
   close() {
@@ -750,7 +781,7 @@ export class StationPanel {
       dom.updated.textContent = '等待实时数据';
       dom.updated.title = '';
     }
-    dom.liveText.textContent = this._refreshing ? '刷新中…' : '实时刷新';
+    this._syncLiveLabel();
   }
 
   _refreshTimeSensitive() {

@@ -1116,6 +1116,30 @@ ul.search-results li {
   white-space: nowrap;
 }
 
+.live-status.is-fallback {
+  flex: 1 1 auto;
+  overflow: visible;
+  white-space: normal;
+  align-items: flex-start;
+}
+
+.live-status.is-fallback .live-dot {
+  margin-top: 0.28em;
+  background: var(--charging);
+}
+
+.live-status.is-fallback .live-dot::after {
+  animation: none;
+  border-color: var(--charging);
+  opacity: 0;
+}
+
+.live-status.is-fallback .live-text {
+  white-space: normal;
+  line-height: 1.35;
+  color: var(--charging-strong);
+}
+
 .live-dot {
   position: relative;
   flex: none;
@@ -1302,6 +1326,12 @@ ul.search-results li {
 
 .filter-bar::-webkit-scrollbar {
   display: none;
+}
+
+/* 内容超出可视宽度时，右侧渐隐提示可以横向滑动 */
+.filter-bar.can-scroll:not(.is-scrolled-end) {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent);
 }
 
 .filter-chip {
@@ -1528,9 +1558,9 @@ ul.search-results li {
 
 .map-notice {
   position: fixed;
-  top: calc(84px + env(safe-area-inset-top));
+  top: calc(128px + env(safe-area-inset-top));
   left: 50%;
-  z-index: 25;
+  z-index: 28;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1723,7 +1753,7 @@ ul.search-results li {
   right: 16px;
   bottom: 72px;
   left: 16px;
-  z-index: 80;
+  z-index: 95;
   margin: 0 auto;
   max-width: 420px;
   padding: 12px 16px;
@@ -1923,6 +1953,11 @@ ul.search-results li {
     max-width: calc(100vw - 20px);
   }
 
+  .map-notice {
+    top: calc(156px + env(safe-area-inset-top));
+    width: min(420px, calc(100vw - 24px));
+  }
+
   .map-controls {
     right: 12px;
     bottom: calc(86px + env(safe-area-inset-bottom));
@@ -1932,6 +1967,24 @@ ul.search-results li {
 @media (max-width: 560px) {
   .site-header .brand-text small {
     display: none;
+  }
+
+  /*
+   * 给筛选栏一个确定宽度，flex 才会换行。
+   * fit-content 会先按单行内容撑开，再被 max-width 裁成横向滚动，★ 收藏就被切掉。
+   */
+  .filter-bar {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-width: none;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    overflow: visible;
+  }
+
+  .map-notice {
+    top: calc(172px + env(safe-area-inset-top));
   }
 
   #legend .legend-divider,
