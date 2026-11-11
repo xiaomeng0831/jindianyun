@@ -61,21 +61,84 @@
   - **真实数据 HTTP 适配器与代理脚手架**：新增 `js/http-adapter.js`（单飞请求、超时中断、页面不可见暂停、指数退避、Stale-if-Error、混合回退 `fallbackAdapter`），支持通过 `?adapter=http` 或 `?endpoint=...` 启用；新增 `scripts/cqt_proxy.mjs` 与 `.env.example`（零依赖 Node.js 18+ 本地代理，含 60s 缓存与 `--mock` 联调模式）
   - **文档与预览图同步**：更新 `README.md`、`docs/real-data.md`，并通过 Ego Lite 浏览器实测生成 `docs/screenshots/` 四张桌面/移动端浅色与深色模式截图
 
+- **2026-11-11 工程化全面完善与质量保证阶段**
+  - **自动化回归套件（`scripts/verify_all.mjs`）**：编写了零依赖的端到端自动化测试脚本，覆盖：
+    - 底图几何校验（`data/basemap.json`：bbox 范围、边界闭合、112 栋建筑、95 栋命名建筑、276 条道路）；
+    - 站点数据校验（`data/stations.json`：26 个站点唯一 ID、坐标在校区内、18 自行车站 229 插口与 8 组锂电柜、8 汽车站）；
+    - 适配器契约与趋势演算（`js/mock-adapter.js`：快照完备性、插口状态与 `startedAt`/`endsAt`/`soc`、24h 趋势曲线）；
+    - 通用格式化工具单元测试（`js/format.js` 与 `js/panel.js` 的 `normalizeStatus` / `escapeHtml` / `toTimestamp`）；
+    - 执行 `node scripts/verify_all.mjs` 5/5 项验证全部通过。
+  - **一键本地启动（`启动服务.command`）**：根目录新增 macOS 双击启动脚本，默认监听 8080 端口（端口被占用时自动顺延至 8081），自动拉起默认浏览器，彻底避免占用 8765 端口而与宣威周报系统产生冲突。
+  - **站点一键分享交互**：详情面板头部新增「🔗 复制站点分享链接」按钮（`data-action="share"`），点击将 `index.html#station-<id>` 写入剪贴板并弹出平滑 Toast 提示，方便师生快速分享点位。
+  - **PWA 与离线支持**：新增 `manifest.webmanifest` 与矢量图标 `icon.svg`，编写 `sw.js` 实现核心资源（底图、站点、JS/CSS）的 Stale-While-Revalidate 离线缓存，支持移动端“添加到主屏幕”秒开底图。
+
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）
 - [x] 18+8 个点位坐标（按命名建筑 + 北洋维基校正）
 - [x] 底图渲染组件（Canvas 读取 basemap.json）
 - [x] 静态站骨架（无构建步骤，直接 GitHub Pages 可跑）
 - [x] 模拟数据适配器（占用/空闲/预计结束时间/24h 趋势，随时间演化）
-- [x] 点位详情面板（含收藏、24h 趋势与错峰建议、插口级倒计时）
+- [x] 点位详情面板（含收藏、24h 趋势与错峰建议、插口级倒计时、分享链接）
 - [x] 分类筛选栏与地图缩放/复位浮动控件
 - [x] 电动汽车 6 站预估插口数补齐（标记 `socketsApprox: true`）
 - [x] 真实数据 HTTP 适配器（`js/http-adapter.js`）与本地代理脚手架（`scripts/cqt_proxy.mjs`）
+- [x] PWA 离线支持（`manifest.webmanifest` + `sw.js`）与全链路测试套件（`scripts/verify_all.mjs`）
 - [x] README / LICENSE / 预览截图
 - [x] **发布到 GitHub**：<https://github.com/xiaomeng0831/jindianyun>
   - 线上站点：<https://xiaomeng0831.github.io/jindianyun/>（GitHub Pages，main / root）
   - 推送走 SSH（`~/.ssh/id_ed25519` 已加入账号，标题 `MacBook Pro (Claude Code)`）
 - [ ] 后续改进：实地核实 6 处汽车站精确快/慢充配比与 5 处锂电柜坐标；接入优易充汽车桩实时接口
+
+## 给后续接手 AI / 开发者的交接与速查指南
+
+### 1. 架构速览
+```text
+津电云/
+├── index.html                  # 页面结构（含 meta、filter-bar、map、panel、legend）
+├── manifest.webmanifest        # PWA Web App 清单
+├── sw.js                       # Service Worker 离线缓存
+├── icon.svg                    # 矢量品牌图标
+├── css/style.css               # 主题变量、深浅色适配、响应式栅格与抽屉面板
+├── js/
+│   ├── app.js                  # 入口与中枢：数据装载、事件编排、搜索与筛选联动、SW 注册
+│   ├── map.js                  # Canvas 2D 交互式地图渲染器（平移、缩放、图钉、视口变换）
+│   ├── basemap.js              # 离线底图图层绘制（建筑、道路、水体、绿地、操场、文字注记）
+│   ├── panel.js                # 抽屉式详情面板：插口状态、24h 趋势图、错峰建议、收藏与分享
+│   ├── mock-adapter.js         # 确定性模拟适配器（作息曲线、15min 时段稳定、插口倒计时）
+│   ├── http-adapter.js         # 真实 HTTP 数据源适配器（带超时、重试与回退）
+│   └── format.js               # 中文时间、时长、数字格式化工具
+├── data/
+│   ├── basemap.json            # 北洋园校区矢量底图（112 建筑、276 道路、87 水绿）
+│   └── stations.json           # 26 个充电点位基准定义（18 自行车 229 插口 8 柜，8 汽车 61 车位）
+├── scripts/
+│   ├── verify_all.mjs          # 全套自动化回归与契约测试套件（接手前请先运行！）
+│   ├── build_basemap.js        # 从 osm_raw.json 提取底图几何
+│   ├── build_stations.js       # 站点坐标定位与插口汇总
+│   └── cqt_proxy.mjs           # 常青藤接口本地中继代理
+└── 启动服务.command            # macOS 双击启动脚本（默认 8080 端口）
+```
+
+### 2. 常用命令
+- **全链路自检**：
+  ```bash
+  node scripts/verify_all.mjs
+  ```
+- **语法检查**：
+  ```bash
+  node --check sw.js
+  for f in js/*.js scripts/*.js scripts/*.mjs; do node --check "$f"; done
+  ```
+- **启动服务**：
+  双击 `启动服务.command` 或命令行运行：
+  ```bash
+  python3 -m http.server 8080
+  # 打开 http://127.0.0.1:8080
+  ```
+
+### 3. 数据规范与注意事项
+- 自行车站总插口为 **229** 个（对齐北洋维基明细表，勿改回 220）；锂电柜为 **8** 组；
+- 底图为零依赖离线矢量，绘制直接基于 Canvas 2D，无外部地图供应商 API Key；
+- 本地开发请通过 HTTP 服务器访问，`file://` 会被浏览器阻止加载 ES Modules 与 JSON 数据。
 
 ## 关键决策与坑
 - **数据源**：模拟数据 + 可插拔适配器（用户选定）。真实接口（常青藤智能充电 m.sgdq123.com:8601）只留接口位，不实现。

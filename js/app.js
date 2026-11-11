@@ -98,6 +98,17 @@ async function boot() {
   restoreFromHash();
   document.body.classList.add('app-ready');
   hideLoading();
+  registerServiceWorker();
+}
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch((err) => {
+        console.debug('[津电云] ServiceWorker 注册跳过', err);
+      });
+    });
+  }
 }
 
 function hideLoading(immediate = false) {

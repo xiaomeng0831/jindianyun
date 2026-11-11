@@ -1,0 +1,19 @@
+{
+  "name": "津电云 · 北洋园校区充电桩地图",
+  "short_name": "津电云",
+  "description": "天津大学北洋园校区电动自行车与电动汽车充电桩实时状态地图",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "32x32 72x72 96x96 128x128 192x192 256x256 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

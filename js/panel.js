@@ -37,6 +37,7 @@ const ICONS = {
   cabinet: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="7" width="15" height="10" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M21 10.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 10v4M11 10v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/></svg>',
   plug: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2 4.5 14H11l-1 8 8.5-12H12l1-8Z" fill="currentColor"/></svg>',
   star: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 3.6 2.6 5.3 5.9.85-4.25 4.14 1 5.86L12 17l-5.25 2.75 1-5.86L3.5 9.75l5.9-.85L12 3.6Z" fill="currentColor" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
 /** 把任意状态写法归一为 charging / idle / fault / unknown */
@@ -272,6 +273,7 @@ export class StationPanel {
           <p class="station-sub"></p>
         </div>
         <div class="panel-actions">
+          <button type="button" class="icon-btn share-btn" data-action="share" aria-label="复制站点分享链接" title="复制站点分享链接">${ICONS.share}</button>
           <button type="button" class="icon-btn favorite-btn" data-action="favorite" aria-label="收藏常用站点" aria-pressed="false" title="收藏常用站点">${ICONS.star}</button>
           <button type="button" class="icon-btn panel-close" data-action="close" aria-label="关闭详情">${ICONS.close}</button>
         </div>
@@ -794,6 +796,10 @@ export class StationPanel {
         this.close();
         return;
       }
+      if (action === 'share') {
+        this._copyShareLink();
+        return;
+      }
       if (action === 'favorite') {
         if (this._station && this.onToggleFavorite) {
           this.onToggleFavorite(this._station.id);
@@ -832,6 +838,44 @@ export class StationPanel {
       event.stopPropagation();
       this.close();
     }
+  }
+
+  async _copyShareLink() {
+    if (!this._station) return;
+    const url = new URL(window.location.href);
+    url.hash = `station-${encodeURIComponent(this._station.id)}`;
+    const text = url.toString();
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const input = document.createElement('textarea');
+        input.value = text;
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+      }
+      this._showToast('已复制站点分享链接');
+    } catch {
+      this._showToast('链接复制失败');
+    }
+  }
+
+  _showToast(msg) {
+    let toast = document.getElementById('app-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'app-toast';
+      toast.className = 'app-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('is-visible');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2200);
   }
 }
 

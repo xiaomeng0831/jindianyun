@@ -1987,3 +1987,28 @@ ul.search-results li {
     scroll-behavior: auto !important;
   }
 }
+
+/* 浮动提示 */
+.app-toast {
+  position: fixed;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translate(-50%, 20px);
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  z-index: 2000;
+}
+
+.app-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
