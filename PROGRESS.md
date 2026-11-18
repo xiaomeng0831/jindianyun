@@ -94,6 +94,9 @@
     - 修复 `scripts/cqt_proxy.mjs` 中 `/ NearDevice` 路径多余空格 bug，兼容 `OPEN_ID`/`CQT_OPEN_ID` 与 `PHONENUMBER`/`CQT_PHONENUMBER` 双变量名，同时支持 `/api/charging/status` 与 `/api/stations` 双路由；
     - 修复 `js/panel.js` 分享链接哈希为 `#station=<id>`，并在 `parseStationHash` 中兼容 `#station=`、`#station-` 与裸 ID 三种格式。
   - **测试扩展与线上同步**：合并 GitHub 远端 PR #1~#3（悬浮问答助手与边缘修复），`scripts/verify_all.mjs` 6/6 项全部通过并同步推送至 GitHub `origin/main`。
+  - **修复 `file://` 直接双击打开卡在“正在加载”问题**：
+    - **根因**：用户在本地直接双击打开 `file:///.../津电云/index.html` 时，Chromium 内核（Ego Lite / Chrome）会因 `CorsDisabledScheme` 拦截 `<script type="module" src="js/app.js">` 与 `fetch('data/*.json')`，导致入口脚本根本未执行、加载动画一直转圈；
+    - **修复方案**：新增零依赖打包脚本 `scripts/build_file_fallback.mjs` 生成传统非模块单文件回退包 `js/file-fallback.js`（内联 `stations.json` 与 `basemap.json` 并按模块作用域封装全部 JS）；`index.html` 检测到 `location.protocol === 'file:'` 时自动加载 `js/file-fallback.js`，使本地直接双击 `index.html` 也能 100% 完整运行地图、寻桩导引、总览看板与问答助手（`http://`/`https://` 下仍走原生零构建 ES Modules）。
 
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）

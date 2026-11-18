@@ -316,6 +316,10 @@ testSection('6. 智能寻桩推荐与全校概览聚合 (js/recommend.js) 校验
 
   const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   assert(swSrc.includes('./js/recommend.js'), 'sw.js 离线预缓存列表应包含 ./js/recommend.js');
+
+  const fallbackPath = path.join(ROOT, 'js', 'file-fallback.js');
+  assert(fs.existsSync(fallbackPath) && fs.statSync(fallbackPath).size > 100000, 'js/file-fallback.js 必须存在且包含完整回退包');
+  assert(indexHtml.includes('js/file-fallback.js'), 'index.html 应在 file:// 协议下自动挂载 js/file-fallback.js');
 });
 
 console.log('='.repeat(60));
