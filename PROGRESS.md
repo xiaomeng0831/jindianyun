@@ -61,15 +61,24 @@
   - **真实数据 HTTP 适配器与代理脚手架**：新增 `js/http-adapter.js`（单飞请求、超时中断、页面不可见暂停、指数退避、Stale-if-Error、混合回退 `fallbackAdapter`），支持通过 `?adapter=http` 或 `?endpoint=...` 启用；新增 `scripts/cqt_proxy.mjs` 与 `.env.example`（零依赖 Node.js 18+ 本地代理，含 60s 缓存与 `--mock` 联调模式）
   - **文档与预览图同步**：更新 `README.md`、`docs/real-data.md`，并通过 Ego Lite 浏览器实测生成 `docs/screenshots/` 四张桌面/移动端浅色与深色模式截图
 
+- **2026-11-10 悬浮问答助手**（squash `12caabd`，PR #2，已在 GitHub Pages）
+  - `js/chat.js`、`index.html`、`css/style.css`：地图就绪后出现悬浮问答。地址常量是 `CHAT_API_URL`
+  - 请求带最近 12 轮对话和当前站点摘要；回复按纯文本渲染；记录只在 `sessionStorage`
+  - `tests/chat.spec.js` 拦截接口做冒烟，不访问线上后端
+  - 线上路径：浏览器 → Caddy（Let's Encrypt，反代到 `127.0.0.1:8765`）→ systemd 服务 `jindianyun-chat.service` 里的 uvicorn / FastAPI → SiliconFlow `Qwen/Qwen3-8B`
+  - 限额：每 IP 每分钟 10 次、每天 100 次；服务端把最后 12 条消息发给模型，正文字符合计不超过 4000。CORS 只允许 `https://xiaomeng0831.github.io`
+  - 密钥只在服务器文件 `~/.sf_key`（可用 `SILICONFLOW_KEY_FILE` 改路径）
+
+- **2026-11-10 文档与参考后端**
+  - `server/`：与线上一致的 `app.py` / `requirements.txt`（仓库内无密钥）、systemd 单元、Caddy 示例（域名和 ACME 邮箱是占位符）
+  - README、PROGRESS、CONTRIBUTING、`server/README.md` 写明上面的架构和部署步骤
+  - 进度更早处写过「本地 8765 静态服务」，那是当时预览静态页用的端口。现在 `127.0.0.1:8765` 是问答进程
+  - 小组件在服务不可达时改为说明地图仍可使用；能安全显示的中文接口错误会直接展示
+
 - **2026-11-11 工程化全面完善与质量保证阶段**
-  - **自动化回归套件（`scripts/verify_all.mjs`）**：编写了零依赖的端到端自动化测试脚本，覆盖：
-    - 底图几何校验（`data/basemap.json`：bbox 范围、边界闭合、112 栋建筑、95 栋命名建筑、276 条道路）；
-    - 站点数据校验（`data/stations.json`：26 个站点唯一 ID、坐标在校区内、18 自行车站 229 插口与 8 组锂电柜、8 汽车站）；
-    - 适配器契约与趋势演算（`js/mock-adapter.js`：快照完备性、插口状态与 `startedAt`/`endsAt`/`soc`、24h 趋势曲线）；
-    - 通用格式化工具单元测试（`js/format.js` 与 `js/panel.js` 的 `normalizeStatus` / `escapeHtml` / `toTimestamp`）；
-    - 执行 `node scripts/verify_all.mjs` 5/5 项验证全部通过。
-  - **一键本地启动（`启动服务.command`）**：根目录新增 macOS 双击启动脚本，默认监听 8080 端口（端口被占用时自动顺延至 8081），自动拉起默认浏览器，彻底避免占用 8765 端口而与宣威周报系统产生冲突。
-  - **站点一键分享交互**：详情面板头部新增「🔗 复制站点分享链接」按钮（`data-action="share"`），点击将 `index.html#station-<id>` 写入剪贴板并弹出平滑 Toast 提示，方便师生快速分享点位。
+  - **自动化回归套件（`scripts/verify_all.mjs`）**：编写了零依赖的端到端自动化测试脚本，覆盖底图几何、26 站点完整性、模拟适配器契约与通用格式化工具，全部通过。
+  - **一键本地启动（`启动服务.command`）**：根目录新增 macOS 双击启动脚本，默认监听 8080 端口（端口被占用时自动顺延至 8081），自动拉起默认浏览器，彻底避免占用 8765 端口。
+  - **站点一键分享交互**：详情面板头部新增「🔗 复制站点分享链接」按钮（`data-action="share"`），点击将 `index.html#station=<id>` 写入剪贴板并弹出平滑 Toast 提示。
   - **PWA 与离线支持**：新增 `manifest.webmanifest` 与矢量图标 `icon.svg`，编写 `sw.js` 实现核心资源（底图、站点、JS/CSS）的 Stale-While-Revalidate 离线缓存，支持移动端“添加到主屏幕”秒开底图。
 
 - **2026-11-18 v2 阶段：智能寻桩导引、全校总览看板、数据源切换与线上同步**
@@ -84,7 +93,7 @@
     - 总览弹窗底部内置「🔌 数据源模式切换」（确定性模拟数据 / 常青藤 HTTP 实时代理 + Endpoint 配置持久化 `jindianyun:adapter_config`），无需手改 URL 参数即可一键热切换；
     - 修复 `scripts/cqt_proxy.mjs` 中 `/ NearDevice` 路径多余空格 bug，兼容 `OPEN_ID`/`CQT_OPEN_ID` 与 `PHONENUMBER`/`CQT_PHONENUMBER` 双变量名，同时支持 `/api/charging/status` 与 `/api/stations` 双路由；
     - 修复 `js/panel.js` 分享链接哈希为 `#station=<id>`，并在 `parseStationHash` 中兼容 `#station=`、`#station-` 与裸 ID 三种格式。
-  - **测试扩展与线上同步**：`scripts/verify_all.mjs` 新增第 6 大项测试（覆盖球面距离、推荐排序、全满极端回退、全校聚合、哈希解析与静态代码断言），6/6 项全部通过并同步推送至 GitHub `origin/main`。
+  - **测试扩展与线上同步**：合并 GitHub 远端 PR #1~#3（悬浮问答助手与边缘修复），`scripts/verify_all.mjs` 6/6 项全部通过并同步推送至 GitHub `origin/main`。
 
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）
@@ -96,9 +105,10 @@
 - [x] 分类筛选栏与地图缩放/复位浮动控件
 - [x] 电动汽车 6 站预估插口数补齐（标记 `socketsApprox: true`）
 - [x] 真实数据 HTTP 适配器（`js/http-adapter.js`）与本地代理脚手架（`scripts/cqt_proxy.mjs`）
+- [x] 悬浮问答助手（Pages 上的小组件 + 虚拟机上的 FastAPI；密钥不入库）
 - [x] PWA 离线支持（`manifest.webmanifest` + `sw.js`）与全链路测试套件（`scripts/verify_all.mjs`）
 - [x] 智能寻桩导引线（`js/recommend.js` + Canvas 导引层）、全校状态总览看板与数据源热切换 UI
-- [x] README / LICENSE / 预览截图
+- [x] README / LICENSE / 预览截图（含助手收起与展开）
 - [x] **发布到 GitHub**：<https://github.com/xiaomeng0831/jindianyun>
   - 线上站点：<https://xiaomeng0831.github.io/jindianyun/>（GitHub Pages，main / root）
   - 推送走 SSH（`~/.ssh/id_ed25519` 已加入账号，标题 `MacBook Pro (Claude Code)`）
@@ -158,7 +168,7 @@
 
 ## 关键决策与坑
 - **数据源**：模拟数据 + 可插拔适配器（用户选定）。真实接口（常青藤智能充电 m.sgdq123.com:8601）只留接口位，不实现。
-- **技术形态**：纯前端静态站（用户选定），零后端、零构建，GitHub Pages 直接部署。
+- **技术形态**：地图是纯前端静态站，GitHub Pages 直接部署，页面本身零构建。问答助手另有一台小型 Linux 虚拟机上的后端（Caddy + `jindianyun-chat.service`），不随 Pages 发布。
 - **底图**：不用高德/百度（要 key），用 OSM 离线数据自绘。
 - **OSM 关系漏建筑**：`osm_raw.json` 只有 way；郑东图书馆和 平园21–24斋 是 multipolygon **relation**，初次提取漏掉。
   已用 OSM API `relation/{id}/full.json` 取外环补齐（中间文件 `data/extra_buildings.json`）。

@@ -242,6 +242,16 @@ export function createHttpAdapter(stations, options = {}) {
     return null;
   }
 
+  /**
+   * 接口请求失败、该站点又没有可用的 HTTP 快照时，详情来自 fallbackAdapter。
+   * 不传 id 时表示整份数据都在用回退（代理未启动等）。
+   */
+  function isUsingFallback(stationId) {
+    if (!fallbackAdapter || lastError == null) return false;
+    if (stationId) return !details.has(stationId);
+    return details.size === 0;
+  }
+
   return {
     id: 'http',
     label: '实时接口',
@@ -254,6 +264,12 @@ export function createHttpAdapter(stations, options = {}) {
     get lastError() {
       return lastError;
     },
+
+    get usingFallback() {
+      return isUsingFallback();
+    },
+
+    isUsingFallback,
 
     getStationDetail: readStation,
     getDetail: readStation,

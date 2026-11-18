@@ -20,6 +20,7 @@ const PRECACHE_ASSETS = [
   './js/panel.js',
   './js/format.js',
   './js/recommend.js',
+  './js/chat.js',
   './js/mock-adapter.js',
   './js/http-adapter.js',
   './js/adapter.js',

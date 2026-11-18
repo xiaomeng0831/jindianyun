@@ -1,0 +1,11 @@
+{
+  "name": "jindianyun",
+  "private": true,
+  "description": "可选的本地冒烟测试。静态站点本身零构建，GitHub Pages 不依赖本文件。",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
+}

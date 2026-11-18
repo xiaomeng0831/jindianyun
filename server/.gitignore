@@ -1,0 +1,5 @@
+# 本目录若被单独拷出当仓库用，密钥文件也不能入库。
+.sf_key
+*.sf_key
+sf_key
+secrets/

@@ -1,0 +1,11 @@
+# 示例配置。安装前把邮箱和站点名换成你自己的。
+# 不要写入真实邮箱。站点名要和 js/chat.js 里 CHAT_API_URL 的主机名一致。
+# Caddy 会为该站点自动向 Let's Encrypt 申请并续期证书。
+{
+	email you@example.com
+}
+
+chat.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:8765
+}
