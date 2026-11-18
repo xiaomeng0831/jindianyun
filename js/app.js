@@ -22,7 +22,7 @@ import { createHttpAdapter } from './http-adapter.js';
 import { createStationPanel, summarizeStation, escapeHtml } from './panel.js';
 import {
   recommendStations, computeCampusOverview, parseStationHash,
-  resolveCampusOrigin, CAMPUS_CENTER,
+  resolveCampusOrigin, answerChatLocally, CAMPUS_CENTER,
 } from './recommend.js';
 import { mountChatWidget } from './chat.js';
 
@@ -131,7 +131,7 @@ async function boot() {
   try {
     mountChatWidget(document.getElementById('chat-widget'), {
       getContext: buildChatContext,
-      localReply: answerChatLocally,
+      localReply: (q) => answerChatLocally(q, state.stations, state.buildings, summarizeStation, readDetail, TYPE_TEXT),
     });
   } catch (error) {
     console.error('[津电云] 助手初始化失败', error);
@@ -149,110 +149,6 @@ function registerServiceWorker() {
       });
     });
   }
-}
-
-/**
- * 本地实时事实问答引擎：当远端问答接口被 CORS 拦截（如 file:// 或 localhost）
- * 或远端模型缺少实时状态时，直接根据当前页面内存中的站点、楼宇与空闲统计生成精准回答。
- */
-function answerChatLocally(rawQuestion) {
-  const q = String(rawQuestion || '').trim();
-  const ov = computeCampusOverview(state.stations, summarizeStation, readDetail);
-
-  // 1. 地图用法与帮助类问题
-  if (/怎么用|怎么使用|用法|指南|颜色|筛选|搜索|功能/.test(q)) {
-    return [
-      '**津电云地图使用指南：**',
-      '1. **看颜色识空闲**：绿色图钉代表空闲充裕，橙色代表较满，红色代表接近满载；圆形为电动自行车桩，圆角方形为电动汽车桩，带 `柜` 角标表示配有锂电换电柜。',
-      '2. **搜楼宇自动导引**：在顶部搜索框输入任意教学楼或宿舍（如 `38教学楼`、`郑东图书馆`），地图会自动画出到最近空闲充电站的**彩色虚线导引路径**并估算步行耗时。',
-      '3. **全校总览与筛选**：点击顶部 `📊 全校总览` 可查看空闲 Top 5 排行榜与切换数据源；点击右下角 `📍` 可一键定位推荐附近空闲桩。',
-    ].join('\n');
-  }
-
-  // 2. 锂电柜 / 换电类问题
-  if (/锂电|换电|电池柜|电柜/.test(q)) {
-    const cabStations = state.stations.filter((s) => Number(s.cabinets) > 0);
-    const lines = cabStations.map((s) => {
-      const detail = readDetail(s.id);
-      const sum = summarizeStation(s, detail);
-      return `- **${s.name}**：配 **${s.cabinets} 组**锂电柜（充电插口空闲 ${sum.idle}/${sum.total}）`;
-    });
-    return [
-      `北洋园校区共有 **${ov.cabinets.stations} 处**站点配备锂电换电柜（合计 **${ov.cabinets.totalGroups} 组**，当前可用电池仓 **${ov.cabinets.availableSlots}/${ov.cabinets.totalSlots || 48}**）：`,
-      ...lines,
-      '你可以在顶部筛选栏点击 `含锂电柜` 只看换电点位。',
-    ].join('\n');
-  }
-
-  // 3. 电动汽车 / 快慢充类问题
-  if (/汽车|电车|快充|慢充|四轮/.test(q)) {
-    const carStations = state.stations.filter((s) => s.type === 'car');
-    const lines = carStations.map((s) => {
-      const detail = readDetail(s.id);
-      const sum = summarizeStation(s, detail);
-      return `- **${s.name}**：空闲 **${sum.idle}/${sum.total}** 车位`;
-    });
-    return [
-      `全校共有 **${ov.car.stations} 处**电动汽车充电站（合计 **${ov.car.sockets} 个**车位，当前空闲 **${ov.car.idle}** 个）：`,
-      ...lines,
-      '其中 **1895行政楼北侧**（14口：快8+慢6）与 **桃园餐厅东侧**（7口：快4+慢3）为实测配比。',
-    ].join('\n');
-  }
-
-  // 4. 特定园区 / 楼宇 / 站点附近寻桩（匹配站点名、园区关键词或楼宇名）
-  const cleanQ = q.replace(/附近|周围|旁边|有没有|有吗|在哪|去哪|充电桩|充电站|充电|请问|现在|的/g, '').trim();
-  if (cleanQ.length >= 2) {
-    const matchedStations = state.stations.filter((s) => s.name.includes(cleanQ) || cleanQ.includes(s.name));
-    if (matchedStations.length > 0) {
-      const lines = matchedStations.map((s) => {
-        const sum = summarizeStation(s, readDetail(s.id));
-        const cab = Number(s.cabinets) > 0 ? `，含 ${s.cabinets} 组锂电柜` : '';
-        return `- **${s.name}**（${TYPE_TEXT[s.type]}）：当前空闲 **${sum.idle}/${sum.total}** 口（使用中 ${sum.charging} 口${cab}）`;
-      });
-      const origin = { lon: matchedStations[0].lon, lat: matchedStations[0].lat, name: matchedStations[0].name };
-      const nearby = recommendStations(origin, state.stations, summarizeStation, readDetail, { limit: 3 });
-      const nearText = nearby
-        .map((r, i) => `${i + 1}. **${r.station.name}**（约 ${r.meters}m，空闲 **${r.idle}/${r.total}** 口）`)
-        .join('\n');
-      return [
-        `为你找到与「**${cleanQ}**」匹配的充电站实时状态：`,
-        ...lines,
-        '',
-        '**该区域就近空闲推荐：**',
-        nearText,
-      ].join('\n');
-    }
-
-    const matchedBuilding = state.buildings.find((b) => b.name.includes(cleanQ) || cleanQ.includes(b.name));
-    if (matchedBuilding) {
-      const recs = recommendStations(matchedBuilding, state.stations, summarizeStation, readDetail, { limit: 3 });
-      const recLines = recs.map((r, i) => (
-        `${i + 1}. **${r.station.name}**（距此约 **${r.meters}m** · 步行约 ${r.walkMinutes} 分钟）：空闲 **${r.idle}/${r.total}** 口`
-      ));
-      return [
-        `从 **${matchedBuilding.name}** 出发，为你推荐距离最近且有空位的充电站：`,
-        ...recLines,
-        '在顶部搜索框选中该楼宇即可在地图上显示彩色导引虚线。',
-      ].join('\n');
-    }
-  }
-
-  // 5. 默认 / 哪些站点比较空 / 全校概况
-  const topIdleLines = ov.topIdle.map((it, idx) => (
-    `${idx + 1}. **${it.station.name}**（${TYPE_TEXT[it.station.type]}）：空闲 **${it.idle}/${it.total}** 口`
-  ));
-  const crowdedNames = ov.topCrowded.slice(0, 3).map((it) => (
-    `**${it.station.name}**（余 ${it.idle} 口）`
-  )).join('、');
-
-  return [
-    `当前全校 **${ov.totalStations}** 个站点共有空闲插口 **${ov.totalIdle}/${ov.totalSockets}** 个（电动自行车空闲 ${ov.bike.idle}/${ov.bike.sockets}，汽车空闲 ${ov.car.idle}/${ov.car.sockets}，总占用率 ${ov.occupancyRate}%）。`,
-    '',
-    '**🟢 目前空闲最充裕的站点 Top 5：**',
-    ...topIdleLines,
-    '',
-    `🟠 当前较满站点：${crowdedNames}，建议错峰或前往上方空闲站点。`,
-  ].join('\n');
 }
 
 /** 当前内存中的站点名称与插口统计，供助手接口的 context 字段使用。 */
@@ -448,34 +344,14 @@ function syncFooterModeLabel() {
 }
 
 function createAdapter(stations) {
-  let mock = null;
-  const attempts = [
-    () => createMockAdapter(stations),
-    () => createMockAdapter({ stations }),
-    () => createMockAdapter(),
-  ];
-
-  for (const attempt of attempts) {
-    try {
-      const adapter = attempt();
-      if (!adapter || typeof adapter !== 'object') continue;
-      if (probeAdapter(adapter)) {
-        mock = adapter;
-        break;
-      }
-      if (!mock) mock = adapter;
-    } catch { /* 尝试下一种签名 */ }
-  }
-  const fallback = mock || createFallbackAdapter(stations);
-
+  const mock = createMockAdapter(stations);
   if (state.adapterMode === 'http') {
     return createHttpAdapter(stations, {
       endpoint: state.adapterEndpoint || DEFAULT_HTTP_ENDPOINT,
-      fallbackAdapter: fallback,
+      fallbackAdapter: mock,
     });
   }
-
-  return fallback;
+  return mock;
 }
 
 function switchAdapterMode(mode, endpoint) {
@@ -1337,7 +1213,7 @@ function renderGuideBanner() {
     const active = item.station.id === state.guideActiveId;
     const rankLabel = idx === 0 ? '首选' : `备选 ${idx}`;
     return `
-      <button type="button" class="guide-item${active ? ' is-active' : ''}" data-guide-id="${escapeHtml(item.station.id)}">
+      <button type="button" class="guide-item${active ? ' is-active' : ''}" data-guide-id="${escapeHtml(item.station.id)}" aria-pressed="${String(active)}">
         <span class="guide-item-name">${rankLabel} · ${escapeHtml(item.station.name)}</span>
         <span class="guide-item-meta">约 ${item.meters}m（步行 ${item.walkMinutes} 分钟）· <span class="guide-item-idle">空闲 ${item.idle}/${item.total}</span></span>
       </button>`;
@@ -1345,7 +1221,13 @@ function renderGuideBanner() {
 
   banner.innerHTML = `
     <div class="guide-head">
-      <span class="guide-title">📍 从 <strong>${escapeHtml(state.guideOrigin.name)}</strong> 出发推荐最近空闲桩</span>
+      <span class="guide-title">
+        <svg class="guide-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 21s-7-5.8-7-11a7 7 0 1 1 14 0c0 5.2-7 11-7 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <circle cx="12" cy="10" r="2.5" fill="currentColor"/>
+        </svg>
+        从 <strong>${escapeHtml(state.guideOrigin.name)}</strong> 出发推荐最近空闲桩
+      </span>
       <button type="button" class="guide-close" data-guide-close aria-label="关闭寻桩导引">×</button>
     </div>
     <div class="guide-list">${itemsHtml}</div>`;
@@ -1408,14 +1290,27 @@ function setupOverviewModal() {
 function openOverviewModal() {
   const modal = document.getElementById('overview-modal');
   if (!modal) return;
+  // WCAG 2.2 Focus Not Obscured：打开模态弹窗前自动收起悬浮问答助手面板，避免遮挡焦点
+  const openChatCloseBtn = document.querySelector('#chat-panel:not([hidden]) .chat-close');
+  if (openChatCloseBtn && typeof openChatCloseBtn.click === 'function') {
+    openChatCloseBtn.click();
+  }
   renderOverviewModal();
   modal.hidden = false;
+  const closeBtn = modal.querySelector('.overview-close');
+  if (closeBtn && typeof closeBtn.focus === 'function') {
+    requestAnimationFrame(() => closeBtn.focus());
+  }
 }
 
 function closeOverviewModal() {
   const modal = document.getElementById('overview-modal');
   if (!modal) return;
   modal.hidden = true;
+  const trigger = document.getElementById('overview-btn');
+  if (trigger && typeof trigger.focus === 'function') {
+    trigger.focus();
+  }
 }
 
 function renderOverviewModal() {
@@ -1425,10 +1320,12 @@ function renderOverviewModal() {
 
   const renderRankItem = (item, isBusy = false) => {
     const pct = Math.round(item.ratio * 100);
+    const fillPct = isBusy ? pct : (item.total > 0 ? Math.round((item.idle / item.total) * 100) : 0);
     return `
       <li>
         <button type="button" class="overview-rank-btn" data-overview-station="${escapeHtml(item.station.id)}">
-          <span>${escapeHtml(item.station.name)}</span>
+          <span class="overview-rank-fill ${isBusy ? 'is-busy' : 'is-idle'}" style="width:${Math.max(6, Math.min(100, fillPct))}%" aria-hidden="true"></span>
+          <span class="overview-rank-name">${escapeHtml(item.station.name)}</span>
           <span class="overview-rank-badge ${isBusy ? 'is-busy' : 'is-idle'}">
             ${isBusy ? `占用 ${pct}%（余 ${item.idle} 口）` : `空闲 ${item.idle}/${item.total} 口`}
           </span>
@@ -1437,36 +1334,53 @@ function renderOverviewModal() {
   };
 
   const isHttp = state.adapterMode === 'http';
+  const totalIdlePct = ov.totalSockets > 0 ? Math.round((ov.totalIdle / ov.totalSockets) * 100) : 0;
+  const bikeIdlePct = ov.bike.sockets > 0 ? Math.round((ov.bike.idle / ov.bike.sockets) * 100) : 0;
+  const carIdlePct = ov.car.sockets > 0 ? Math.round((ov.car.idle / ov.car.sockets) * 100) : 0;
+  const cabTotal = ov.cabinets.totalSlots || 48;
+  const cabAvailPct = cabTotal > 0 ? Math.round((ov.cabinets.availableSlots / cabTotal) * 100) : 0;
 
   body.innerHTML = `
     <div class="overview-kpis">
       <div class="overview-kpi">
         <div class="overview-kpi-val is-idle">${ov.totalIdle} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.totalSockets}</small></div>
         <div class="overview-kpi-label">全校当前空闲插口（总占用率 ${ov.occupancyRate}%）</div>
+        <div class="overview-kpi-bar" role="progressbar" aria-label="全校空闲占比" aria-valuenow="${totalIdlePct}" aria-valuemin="0" aria-valuemax="100">
+          <span class="overview-kpi-fill is-idle" style="width:${totalIdlePct}%"></span>
+        </div>
       </div>
       <div class="overview-kpi">
         <div class="overview-kpi-val">${ov.bike.idle} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.bike.sockets}</small></div>
-        <div class="overview-kpi-label">电动自行车空闲（${ov.bike.stations} 站）</div>
+        <div class="overview-kpi-label">电动自行车空闲（${ov.bike.stations} 站 · ${bikeIdlePct}% 可用）</div>
+        <div class="overview-kpi-bar" role="progressbar" aria-label="电动自行车空闲占比" aria-valuenow="${bikeIdlePct}" aria-valuemin="0" aria-valuemax="100">
+          <span class="overview-kpi-fill is-bike" style="width:${bikeIdlePct}%"></span>
+        </div>
       </div>
       <div class="overview-kpi">
         <div class="overview-kpi-val">${ov.car.idle} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.car.sockets}</small></div>
-        <div class="overview-kpi-label">电动汽车空闲（${ov.car.stations} 站）</div>
+        <div class="overview-kpi-label">电动汽车空闲（${ov.car.stations} 站 · ${carIdlePct}% 可用）</div>
+        <div class="overview-kpi-bar" role="progressbar" aria-label="电动汽车空闲占比" aria-valuenow="${carIdlePct}" aria-valuemin="0" aria-valuemax="100">
+          <span class="overview-kpi-fill is-car" style="width:${carIdlePct}%"></span>
+        </div>
       </div>
       <div class="overview-kpi">
-        <div class="overview-kpi-val">${ov.cabinets.availableSlots} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.cabinets.totalSlots || 48}</small></div>
-        <div class="overview-kpi-label">锂电柜可用电池（${ov.cabinets.totalGroups} 组换电柜）</div>
+        <div class="overview-kpi-val">${ov.cabinets.availableSlots} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${cabTotal}</small></div>
+        <div class="overview-kpi-label">锂电柜可用电池（${ov.cabinets.totalGroups} 组换电柜 · ${cabAvailPct}% 可换）</div>
+        <div class="overview-kpi-bar" role="progressbar" aria-label="锂电柜可用电池占比" aria-valuenow="${cabAvailPct}" aria-valuemin="0" aria-valuemax="100">
+          <span class="overview-kpi-fill is-cabinet" style="width:${cabAvailPct}%"></span>
+        </div>
       </div>
     </div>
 
     <div class="overview-cols">
       <div class="overview-box">
-        <h3>🟢 当前空闲最充裕 Top 5（点击直接前往）</h3>
+        <h3><i class="overview-status-dot is-idle" aria-hidden="true"></i>当前空闲最充裕 Top 5（点击直接前往）</h3>
         <ul class="overview-rank">
           ${ov.topIdle.map((it) => renderRankItem(it, false)).join('')}
         </ul>
       </div>
       <div class="overview-box">
-        <h3>🟠 当前高峰繁忙站点 Top 5（建议错峰）</h3>
+        <h3><i class="overview-status-dot is-busy" aria-hidden="true"></i>当前高峰繁忙站点 Top 5（建议错峰）</h3>
         <ul class="overview-rank">
           ${ov.topCrowded.map((it) => renderRankItem(it, true)).join('')}
         </ul>
@@ -1475,7 +1389,12 @@ function renderOverviewModal() {
 
     <div class="datasource-card">
       <div class="datasource-head">
-        <span class="datasource-title">🔌 数据源模式切换</span>
+        <span class="datasource-title">
+          <svg class="overview-section-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 2v5M8 4v3M16 4v3M6 7h12v5a6 6 0 0 1-6 6 6 6 0 0 1-6-6V7zM12 18v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          数据源模式切换
+        </span>
         <div class="datasource-modes" role="group" aria-label="选择数据源模式">
           <button type="button" class="datasource-mode-btn${!isHttp ? ' is-active' : ''}" data-ds-mode="mock">确定性模拟数据</button>
           <button type="button" class="datasource-mode-btn${isHttp ? ' is-active' : ''}" data-ds-mode="http">常青藤 HTTP 实时代理</button>
@@ -1617,63 +1536,4 @@ function currentLiveMode(stationId) {
     return adapter.isUsingFallback(stationId) ? 'fallback' : 'live';
   }
   return 'live';
-}
-
-/* ------------------------------------------------- 无适配器时的兜底模拟 */
-
-function createFallbackAdapter(stations) {
-  const listeners = new Set();
-  const details = new Map();
-  let updatedAt = Date.now();
-
-  const hash = (text) => {
-    let value = 2166136261;
-    for (let i = 0; i < text.length; i += 1) {
-      value ^= text.charCodeAt(i);
-      value = Math.imul(value, 16777619);
-    }
-    return Math.abs(value);
-  };
-
-  const build = (station) => {
-    const now = Date.now();
-    const total = Math.max(0, Number(station.sockets) || 0);
-    const sockets = [];
-    for (let i = 1; i <= total; i += 1) {
-      const seed = hash(`${station.id}:${i}:${Math.floor(now / 60000)}`);
-      let status = 'idle';
-      if (seed % 11 === 0) status = 'fault';
-      else if (seed % 3 === 0) status = 'charging';
-      sockets.push({
-        no: i,
-        status,
-        endTime: status === 'charging' ? now + (10 + (seed % 80)) * 60000 : null,
-      });
-    }
-    return { updatedAt: now, sockets };
-  };
-
-  const rebuild = () => {
-    updatedAt = Date.now();
-    stations.forEach((station) => details.set(station.id, build(station)));
-  };
-
-  rebuild();
-  window.setInterval(() => {
-    rebuild();
-    listeners.forEach((listener) => {
-      try { listener({ updatedAt }); } catch { /* 忽略 */ }
-    });
-  }, 20000);
-
-  return {
-    get updatedAt() { return updatedAt; },
-    getStationDetail(stationId) { return details.get(stationId) || null; },
-    getDetail(stationId) { return details.get(stationId) || null; },
-    refresh() { rebuild(); listeners.forEach((listener) => listener({ updatedAt })); },
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-  };
 }

@@ -32,6 +32,7 @@ import { SOCKET_STATUS } from '../js/adapter.js';
 import {
   haversineMeters, estimateWalkMinutes, recommendStations,
   computeCampusOverview, parseStationHash, resolveCampusOrigin,
+  answerChatLocally,
 } from '../js/recommend.js';
 import { projectLonLat, unprojectPoint } from '../js/basemap.js';
 
@@ -331,6 +332,24 @@ testSection('6. 智能寻桩推荐与全校概览聚合 (js/recommend.js) 校验
   assert(west.x < east.x, '地图投影必须满足左西右东（西侧 X < 东侧 X）');
   const [rtLon, rtLat] = unprojectPoint(north.x, north.y);
   assert(Math.abs(rtLon - 117.309987) < 1e-6 && Math.abs(rtLat - 39.002503) < 1e-6, 'unprojectPoint 逆投影应精确还原经纬度');
+
+  // 本地事实问答纯函数引擎 (answerChatLocally) 五大意图覆盖校验
+  const mockBuildings = [{ name: '郑东图书馆', lon: 117.30754, lat: 38.99658 }];
+  const ansOverview = answerChatLocally('哪些站点现在比较空？', stations, mockBuildings, summarizeStation, (id) => snapshot[id]);
+  assert(ansOverview.includes('当前全校 **26** 个站点') && ansOverview.includes('Top 5'), '默认/空闲问答应返回全校统计与 Top 5');
+  const ansCabinet = answerChatLocally('哪里有锂电换电柜？', stations, mockBuildings, summarizeStation, (id) => snapshot[id]);
+  assert(ansCabinet.includes('锂电换电柜') && ansCabinet.includes('8 组'), '换电问答应返回 8 组锂电柜详情');
+  const ansCar = answerChatLocally('电动汽车快充桩在哪？', stations, mockBuildings, summarizeStation, (id) => snapshot[id]);
+  assert(ansCar.includes('电动汽车充电站') && ansCar.includes('1895行政楼北侧'), '汽车问答应返回汽车充电站与快慢充配比');
+  const ansBuilding = answerChatLocally('郑东图书馆附近有充电桩吗？', stations, mockBuildings, summarizeStation, (id) => snapshot[id]);
+  assert(ansBuilding.includes('郑东图书馆') && ansBuilding.includes('步行约'), '楼宇寻桩问答应返回距离与步行分钟');
+  const ansGuide = answerChatLocally('这张地图怎么用？', stations, mockBuildings, summarizeStation, (id) => snapshot[id]);
+  assert(ansGuide.includes('津电云地图使用指南'), '地图用法问答应返回操作指南');
+
+  // UI/UX Pro Max 无障碍进度条与 SVG 图标静态校验
+  const appSrc = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+  assert(appSrc.includes('role="progressbar"') && appSrc.includes('overview-kpi-bar'), '全校总览 KPI 卡片应包含无障碍进度条');
+  assert(!appSrc.includes('createFallbackAdapter'), 'app.js 不应再保留冗余的 createFallbackAdapter');
 });
 
 console.log('='.repeat(60));

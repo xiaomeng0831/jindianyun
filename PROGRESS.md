@@ -101,6 +101,16 @@
     - **地图上下镜像校正（`js/basemap.js`）**：原 `projectLonLat(lon, lat)` 中 Web Mercator 的 `y` 未取反，而 Canvas 屏幕坐标系 `y` 向下递增，导致北侧（高纬度）被画在屏幕下方、南侧（低纬度）被画在屏幕上方，与实际地图上下颠倒。现已将 `projectLonLat` 的 `y` 取反（`y: -Math.log(...)`）并同步修正 `unprojectPoint`（`Math.exp(-y)`），使底图、道路注记与站点图钉严格遵循**上北下南、左西右东**（与高德/苹果地图完全一致）；
     - **津电云助手本地实时事实问答回退（`js/chat.js` + `js/app.js`）**：远端接口 `23-100-88-70.sslip.io` 的 CORS 仅放行 `https://xiaomeng0831.github.io`，在本地 `file://` 或 `localhost` 下会被浏览器拦截，且远端模型未读取前端实时模拟状态。现已在 `js/app.js` 内置 `answerChatLocally` 实时事实问答引擎并注入 `mountChatWidget`，支持针对“哪些站点现在比较空”“某园区/某教学楼附近有没有充电桩”“锂电柜/汽车桩分布”“地图怎么用”等问题直接基于页面实时数据秒级精准回答；
     - **桌面端悬浮按钮间距微调（`css/style.css`）**：将宽屏下 `.chat-widget` 的 `bottom` 从 `184px` 调整为 `226px`，避免压住新增的「📍 附近寻桩」按钮。
+  - **2026-11-18 v3 阶段：`ui-ux-pro-max` 设计系统与 `improve-codebase-architecture` 模块深化升级**：
+    - **UI/UX Pro Max 设计系统与无障碍升级（`design-system/jindianyun/` + `index.html` + `js/app.js` + `css/style.css`）**：
+      - 基于 `ui-ux-pro-max` 生成津电云专属设计令牌系统（`MASTER.md`、`tokens.json`、`tokens.css`、`preview.html`）；
+      - **Priority 1（WCAG 2.2 Focus Not Obscured）**：`openOverviewModal()` 打开全校总览弹窗前自动收起已展开的悬浮问答面板 `#chat-panel`，并将键盘焦点移入弹窗关闭按钮 `.overview-close`；关闭弹窗时自动将焦点归还 `#overview-btn`；
+      - **Priority 4（No Raw Emoji Icons）**：将筛选栏 `#overview-btn`、导引横幅 `#guide-banner` 与全校总览弹窗标题中的原生 Emoji（`📊 📍 🟢 🟠 🔌`）全面替换为 `aria-hidden="true"` 矢量 SVG 图标与发光语义状态圆点 `.overview-status-dot`；
+      - **Priority 10（Bullet / Progress Meter for 3+ KPIs）**：全校总览 4 张 KPI 卡片新增 `role="progressbar"` 彩色语义进度条（`.overview-kpi-bar` / `.overview-kpi-fill`），Top 5 空闲与繁忙榜单按钮新增比例背景填充条（`.overview-rank-fill`）。
+    - **架构深化重构（`improve-codebase-architecture` + `/codebase-design`）**：
+      - **深化 `js/recommend.js` 领域模块（Candidate 1 · `in-process`）**：将 105 行本地实时事实问答引擎 `answerChatLocally` 从 `js/app.js` 下沉为 `js/recommend.js` 的纯函数导出接口，并在 `scripts/verify_all.mjs` 中新增五大问答意图（空闲总览、锂电换电柜、汽车快慢充、教学楼就近寻桩、地图使用指南）的进程内自动化断言；
+      - **收敛 `StationAdapter` Seam（Candidate 2 · `ports & adapters`）**：移除 `js/app.js` 末尾冗余的 60 行 `createFallbackAdapter` 与多签名试探代码，统一复用零外部依赖的确定性 `createMockAdapter(stations)`，使 `js/app.js` 净减 129 行；
+      - 生成可视化架构评审报告 `design-system/jindianyun/architecture-review.html`（含 Mermaid 模块依赖图、前后调用图坍缩对比、模块深度横截面图与代码体积分布条）。
 
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）

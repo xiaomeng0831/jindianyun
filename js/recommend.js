@@ -216,3 +216,124 @@ export function parseStationHash(rawHash) {
   if (decoded.startsWith('station-')) return decoded.slice('station-'.length).trim();
   return decoded;
 }
+
+const DEFAULT_TYPE_TEXT = { bike: '电动自行车', car: '电动汽车' };
+
+/**
+ * 本地实时事实问答纯函数引擎：
+ * 当远端问答接口被 CORS 拦截（如 file:// 或 localhost）或远端模型缺少实时状态时，
+ * 直接基于当前站点、楼宇与实时插口统计生成精准 Markdown 回答。
+ */
+export function answerChatLocally(
+  rawQuestion,
+  stations = [],
+  buildings = [],
+  summarizeFn,
+  detailReader,
+  typeText = DEFAULT_TYPE_TEXT,
+) {
+  const q = String(rawQuestion || '').trim();
+  const ov = computeCampusOverview(stations, summarizeFn, detailReader);
+
+  // 1. 地图用法与帮助类问题
+  if (/怎么用|怎么使用|用法|指南|颜色|筛选|搜索|功能/.test(q)) {
+    return [
+      '**津电云地图使用指南：**',
+      '1. **看颜色识空闲**：绿色图钉代表空闲充裕，橙色代表较满，红色代表接近满载；圆形为电动自行车桩，圆角方形为电动汽车桩，带 `柜` 角标表示配有锂电换电柜。',
+      '2. **搜楼宇自动导引**：在顶部搜索框输入任意教学楼或宿舍（如 `38教学楼`、`郑东图书馆`），地图会自动画出到最近空闲充电站的**彩色虚线导引路径**并估算步行耗时。',
+      '3. **全校总览与筛选**：点击顶部 `全校总览` 可查看空闲 Top 5 排行榜与切换数据源；点击右下角定位按钮可一键推荐附近空闲桩。',
+    ].join('\n');
+  }
+
+  // 2. 锂电柜 / 换电类问题
+  if (/锂电|换电|电池柜|电柜/.test(q)) {
+    const cabStations = (stations || []).filter((s) => Number(s.cabinets) > 0);
+    const lines = cabStations.map((s) => {
+      const detail = typeof detailReader === 'function' ? detailReader(s.id) : null;
+      const sum = typeof summarizeFn === 'function'
+        ? summarizeFn(s, detail)
+        : { idle: 0, total: Number(s.sockets) || 0 };
+      return `- **${s.name}**：配 **${s.cabinets} 组**锂电柜（充电插口空闲 ${sum.idle}/${sum.total}）`;
+    });
+    return [
+      `北洋园校区共有 **${ov.cabinets.stations} 处**站点配备锂电换电柜（合计 **${ov.cabinets.totalGroups} 组**，当前可用电池仓 **${ov.cabinets.availableSlots}/${ov.cabinets.totalSlots || 48}**）：`,
+      ...lines,
+      '你可以在顶部筛选栏点击 `含锂电柜` 只看换电点位。',
+    ].join('\n');
+  }
+
+  // 3. 电动汽车 / 快慢充类问题
+  if (/汽车|电车|快充|慢充|四轮/.test(q)) {
+    const carStations = (stations || []).filter((s) => s.type === 'car');
+    const lines = carStations.map((s) => {
+      const detail = typeof detailReader === 'function' ? detailReader(s.id) : null;
+      const sum = typeof summarizeFn === 'function'
+        ? summarizeFn(s, detail)
+        : { idle: 0, total: Number(s.sockets) || 0 };
+      return `- **${s.name}**：空闲 **${sum.idle}/${sum.total}** 车位`;
+    });
+    return [
+      `全校共有 **${ov.car.stations} 处**电动汽车充电站（合计 **${ov.car.sockets} 个**车位，当前空闲 **${ov.car.idle}** 个）：`,
+      ...lines,
+      '其中 **1895行政楼北侧**（14口：快8+慢6）与 **桃园餐厅东侧**（7口：快4+慢3）为实测配比。',
+    ].join('\n');
+  }
+
+  // 4. 特定园区 / 楼宇 / 站点附近寻桩（匹配站点名、园区关键词或楼宇名）
+  const cleanQ = q.replace(/附近|周围|旁边|有没有|有吗|在哪|去哪|充电桩|充电站|充电|请问|现在|的/g, '').trim();
+  if (cleanQ.length >= 2) {
+    const matchedStations = (stations || []).filter((s) => s.name.includes(cleanQ) || cleanQ.includes(s.name));
+    if (matchedStations.length > 0) {
+      const lines = matchedStations.map((s) => {
+        const detail = typeof detailReader === 'function' ? detailReader(s.id) : null;
+        const sum = typeof summarizeFn === 'function'
+          ? summarizeFn(s, detail)
+          : { idle: 0, charging: 0, total: Number(s.sockets) || 0 };
+        const cab = Number(s.cabinets) > 0 ? `，含 ${s.cabinets} 组锂电柜` : '';
+        return `- **${s.name}**（${typeText[s.type] || '充电站'}）：当前空闲 **${sum.idle}/${sum.total}** 口（使用中 ${sum.charging} 口${cab}）`;
+      });
+      const origin = { lon: matchedStations[0].lon, lat: matchedStations[0].lat, name: matchedStations[0].name };
+      const nearby = recommendStations(origin, stations, summarizeFn, detailReader, { limit: 3 });
+      const nearText = nearby
+        .map((r, i) => `${i + 1}. **${r.station.name}**（约 ${r.meters}m，空闲 **${r.idle}/${r.total}** 口）`)
+        .join('\n');
+      return [
+        `为你找到与「**${cleanQ}**」匹配的充电站实时状态：`,
+        ...lines,
+        '',
+        '**该区域就近空闲推荐：**',
+        nearText,
+      ].join('\n');
+    }
+
+    const matchedBuilding = (buildings || []).find((b) => b.name && (b.name.includes(cleanQ) || cleanQ.includes(b.name)));
+    if (matchedBuilding) {
+      const recs = recommendStations(matchedBuilding, stations, summarizeFn, detailReader, { limit: 3 });
+      const recLines = recs.map((r, i) => (
+        `${i + 1}. **${r.station.name}**（距此约 **${r.meters}m** · 步行约 ${r.walkMinutes} 分钟）：空闲 **${r.idle}/${r.total}** 口`
+      ));
+      return [
+        `从 **${matchedBuilding.name}** 出发，为你推荐距离最近且有空位的充电站：`,
+        ...recLines,
+        '在顶部搜索框选中该楼宇即可在地图上显示彩色导引虚线。',
+      ].join('\n');
+    }
+  }
+
+  // 5. 默认 / 哪些站点比较空 / 全校概况
+  const topIdleLines = ov.topIdle.map((it, idx) => (
+    `${idx + 1}. **${it.station.name}**（${typeText[it.station.type] || '充电站'}）：空闲 **${it.idle}/${it.total}** 口`
+  ));
+  const crowdedNames = ov.topCrowded.slice(0, 3).map((it) => (
+    `**${it.station.name}**（余 ${it.idle} 口）`
+  )).join('、');
+
+  return [
+    `当前全校 **${ov.totalStations}** 个站点共有空闲插口 **${ov.totalIdle}/${ov.totalSockets}** 个（电动自行车空闲 ${ov.bike.idle}/${ov.bike.sockets}，汽车空闲 ${ov.car.idle}/${ov.car.sockets}，总占用率 ${ov.occupancyRate}%）。`,
+    '',
+    '**目前空闲最充裕的站点 Top 5：**',
+    ...topIdleLines,
+    '',
+    `当前较满站点：${crowdedNames}，建议错峰或前往上方空闲站点。`,
+  ].join('\n');
+}

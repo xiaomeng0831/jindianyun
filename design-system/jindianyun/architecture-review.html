@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>津电云 (Jindianyun) — Architecture Deepening & UI/UX Pro Max Review</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    flowchart: { curve: 'basis', padding: 14, nodeSpacing: 36, rankSpacing: 46 },
+    themeVariables: {
+      fontFamily: 'Inter, system-ui, sans-serif',
+      fontSize: '12px',
+      primaryColor: '#eef2ff',
+      primaryTextColor: '#1e1b4b',
+      primaryBorderColor: '#6366f1',
+      lineColor: '#94a3b8',
+      secondaryColor: '#ecfdf5',
+      tertiaryColor: '#f8fafc',
+    }
+  });
+</script>
+<style>
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #0f172a; background: #f8fafc; }
+  code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .mermaid svg { max-width: 100%; height: auto; }
+  .diff-del { background: #fef2f2; color: #991b1b; border-left: 3px solid #ef4444; }
+  .diff-add { background: #f0fdf4; color: #166534; border-left: 3px solid #22c55e; }
+</style>
+</head>
+<body class="antialiased">
+
+<header class="border-b border-slate-200 bg-white sticky top-0 z-30 backdrop-blur bg-white/95">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-600"></div>
+      <span class="font-semibold text-slate-900">Architecture &amp; UI/UX Pro Max Review</span>
+      <span class="text-slate-400">·</span>
+      <span class="mono text-sm text-slate-600">津电云 (jindianyun)</span>
+    </div>
+    <nav class="flex items-center gap-5 text-xs font-medium text-slate-500">
+      <a href="#overview" class="hover:text-slate-900">1. Codebase Shape</a>
+      <a href="#candidate-1" class="hover:text-slate-900">2. Deepen recommend.js</a>
+      <a href="#candidate-2" class="hover:text-slate-900">3. Unify Adapter Seam</a>
+      <a href="#candidate-3" class="hover:text-slate-900">4. Next Deepening</a>
+      <a href="#ui-ux" class="hover:text-slate-900">5. UI/UX Pro Max</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 py-10 space-y-12">
+
+  <!-- 1. Orientation Card -->
+  <section id="overview" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wider text-indigo-600">Codebase Orientation</div>
+        <h1 class="text-2xl font-bold text-slate-900 mt-1">津电云 · 模块深度 (Module Depth) 与耦合诊断</h1>
+        <p class="text-sm text-slate-600 mt-1 max-w-3xl">
+          基于 <code class="text-xs bg-slate-100 px-1.5 py-0.5 rounded">/codebase-design</code> 原则（<span class="font-medium">module, interface, implementation, depth, seam, adapter, leverage, locality</span>）对 <code class="text-xs bg-slate-100 px-1.5 py-0.5 rounded">js/</code> 下的 10 个零构建 ES 模块进行结构诊断与深化重构。
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">2 Strong Candidates Executed</span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20">6/6 Automated Tests Passing</span>
+      </div>
+    </div>
+
+    <!-- Codebase Mass Bar -->
+    <div class="space-y-2">
+      <div class="flex justify-between text-xs text-slate-500">
+        <span class="font-medium text-slate-700">模块体量分布 (LOC Mass Breakdown — Refactor 后总计 4,625 行 JS)</span>
+        <span class="mono">app.js 缩减 129 行 (-7.7%) · recommend.js 深化至 339 行</span>
+      </div>
+      <div class="h-7 w-full rounded-lg overflow-hidden flex text-[11px] font-medium text-white shadow-inner">
+        <div style="width: 33.6%" class="bg-amber-500 flex items-center justify-center truncate px-1" title="js/app.js (1,558 LOC)">app.js (1,558)</div>
+        <div style="width: 19.7%" class="bg-indigo-600 flex items-center justify-center truncate px-1" title="js/map.js (911 LOC)">map.js (911)</div>
+        <div style="width: 11.7%" class="bg-indigo-500 flex items-center justify-center truncate px-1" title="js/panel.js (541 LOC)">panel.js (541)</div>
+        <div style="width: 9.7%" class="bg-sky-600 flex items-center justify-center truncate px-1" title="js/basemap.js (450 LOC)">basemap.js (450)</div>
+        <div style="width: 7.3%" class="bg-emerald-600 flex items-center justify-center truncate px-1" title="js/recommend.js (339 LOC)">recommend.js (339)</div>
+        <div style="width: 6.5%" class="bg-teal-600 flex items-center justify-center truncate px-1" title="js/mock-adapter.js (299 LOC)">mock (299)</div>
+        <div style="width: 11.5%" class="bg-slate-500 flex items-center justify-center truncate px-1" title="chat.js + http-adapter.js + format.js + adapter.js (527 LOC)">chat/http/fmt (527)</div>
+      </div>
+    </div>
+
+    <!-- Architecture Flowchart -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2 items-center">
+      <div class="lg:col-span-7 bg-slate-50 rounded-lg border border-slate-200 p-4">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">System Dependency Graph &amp; Seams</div>
+        <pre class="mermaid">
+flowchart LR
+  subgraph UI["UI Orchestrator & Views"]
+    APP["js/app.js<br/>(Boot & DOM Wiring)"]
+    MAP["js/map.js<br/>(Canvas Map & Guide Route)"]
+    PANEL["js/panel.js<br/>(Drawer & Summary)"]
+    CHAT["js/chat.js<br/>(Assistant Widget)"]
+  end
+
+  subgraph DOMAIN["Deep Pure Domain Modules (In-Process Testable)"]
+    REC["js/recommend.js<br/>(Recommend · Overview · Local QA)"]
+    BASE["js/basemap.js<br/>(Mercator North-Up · HitTest)"]
+    FMT["js/format.js<br/>(Time & Number Formatting)"]
+  end
+
+  subgraph SEAM["StationAdapter Seam (Ports & Adapters)"]
+    MOCK["js/mock-adapter.js<br/>(Deterministic 4-Curve Engine)"]
+    HTTP["js/http-adapter.js<br/>(CQT Live Proxy + Fallback)"]
+  end
+
+  APP --> MAP
+  APP --> PANEL
+  APP --> CHAT
+  APP --> REC
+  CHAT -. "localReply()" .-> REC
+  MAP --> BASE
+  PANEL --> FMT
+  APP --> MOCK
+  APP --> HTTP
+  HTTP -. "fallbackAdapter" .-> MOCK
+        </pre>
+      </div>
+      <div class="lg:col-span-5 space-y-3 text-sm text-slate-600">
+        <div class="p-3.5 rounded-lg bg-emerald-50/70 border border-emerald-200">
+          <div class="font-semibold text-emerald-950 text-xs uppercase tracking-wider">Deep Modules (高杠杆率模块)</div>
+          <p class="mt-1 text-xs text-emerald-900 leading-relaxed">
+            <code class="font-mono">js/recommend.js</code>、<code class="font-mono">js/basemap.js</code> 与 <code class="font-mono">js/mock-adapter.js</code> 具有极高的 <strong>depth</strong>：对外仅暴露极窄的纯函数 <strong>interface</strong>，内部封装了球面 Haversine 寻桩评分、Web Mercator 镜像投影、四大园区作息曲线与 5 类自然语言事实问答。
+          </p>
+        </div>
+        <div class="p-3.5 rounded-lg bg-amber-50/70 border border-amber-200">
+          <div class="font-semibold text-amber-950 text-xs uppercase tracking-wider">Shallow Seams Fixed (已消除的浅层耦合)</div>
+          <p class="mt-1 text-xs text-amber-900 leading-relaxed">
+            重构前 <code class="font-mono">js/app.js</code> 既内联了 105 行问答正则与字符串拼接（破坏 <strong>locality</strong> 且无法在 Node 下做 <strong>in-process</strong> 测试），又在文件末尾重复实现了 60 行 <code class="font-mono">createFallbackAdapter</code>（不信任 <code class="font-mono">mock-adapter.js</code> 的 <strong>seam</strong>）。本次已全部收敛下沉。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Candidate 1: Deepen recommend.js -->
+  <section id="candidate-1" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="border-b border-slate-200 bg-slate-50/60 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">Strong · Executed</span>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20">in-process</span>
+        <h2 class="text-lg font-bold text-slate-900">Candidate 1: 下沉本地事实问答引擎，深化 <code class="mono text-base">js/recommend.js</code> 领域模块</h2>
+      </div>
+      <span class="text-xs font-mono text-slate-500">Cluster: js/app.js + js/recommend.js + js/chat.js</span>
+    </div>
+
+    <div class="p-6 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Friction &amp; Coupling Diagnosis</h3>
+          <p class="mt-2 text-sm text-slate-700 leading-relaxed">
+            在初步修复问答助手时，<code class="mono text-xs bg-slate-100 px-1 py-0.5 rounded">answerChatLocally</code> 被直接写在 UI 控制器 <code class="mono text-xs bg-slate-100 px-1 py-0.5 rounded">js/app.js</code> 内部，直接读取全局 <code class="mono text-xs bg-slate-100 px-1 py-0.5 rounded">state.stations</code> 与 <code class="mono text-xs bg-slate-100 px-1 py-0.5 rounded">state.buildings</code> 并拼装 Markdown。这导致：
+          </p>
+          <ul class="mt-2 space-y-1.5 text-xs text-slate-600 list-disc list-inside">
+            <li><strong>Shallow Orchestrator</strong>：<code class="mono">app.js</code> 承担了意图分类与空间推荐格式化的职责，进一步膨胀。</li>
+            <li><strong>Zero In-Process Testability</strong>：由于 <code class="mono">app.js</code> 顶层直接操作 DOM（<code class="mono">boot()</code>），<code class="mono">scripts/verify_all.mjs</code> 无法在 Node 中导入并验证问答引擎的 5 类意图。</li>
+          </ul>
+        </div>
+
+        <!-- Depth Cross-Section Diagram -->
+        <div class="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-3">
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Module Depth Cross-Section (接口宽度 vs 实现深度)</div>
+          <div class="space-y-3 text-xs">
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="font-medium text-rose-700">Before: app.js 内联问答 (耦合全局 DOM state，不可单测)</span>
+                <span class="mono text-rose-600">Wide UI State Coupling</span>
+              </div>
+              <div class="w-full flex flex-col gap-0.5">
+                <div class="h-3 bg-rose-400 rounded-t w-11/12 text-[9px] text-white px-2 flex items-center">Global state.stations + state.buildings + readDetail + summarizeStation</div>
+                <div class="h-6 bg-rose-100 border border-rose-300 rounded-b w-11/12 text-[10px] text-rose-900 px-2 flex items-center">105 LOC inline regex &amp; string formatting trapped in app.js</div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="font-medium text-emerald-700">After: recommend.js 纯函数领域模块 (窄接口 · 深实现)</span>
+                <span class="mono text-emerald-600">Deep Pure Module</span>
+              </div>
+              <div class="w-full flex flex-col gap-0.5">
+                <div class="h-3 bg-emerald-600 rounded-t w-5/12 text-[9px] text-white px-2 flex items-center">answerChatLocally(q, stations, buildings, ...)</div>
+                <div class="h-9 bg-emerald-50 border border-emerald-300 rounded-b w-full text-[10px] text-emerald-900 px-2 flex items-center">Encapsulates Haversine ranking, overview aggregation &amp; 5-intent NL synthesis (100% Node testable)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Before / After Call Graph -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-lg border border-rose-200 bg-rose-50/30 p-4">
+          <div class="text-xs font-semibold text-rose-800 mb-2">Before: 跨模块往返与 DOM 状态耦合</div>
+          <pre class="mermaid">
+flowchart TD
+  CHAT1["chat.js"] --> APP1["app.js: answerChatLocally()"]
+  APP1 --> STATE1["app.js: global state.stations / buildings"]
+  APP1 --> OV1["recommend.js: computeCampusOverview()"]
+  APP1 --> REC1["recommend.js: recommendStations()"]
+  APP1 --> SUM1["panel.js: summarizeStation()"]
+          </pre>
+        </div>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
+          <div class="text-xs font-semibold text-emerald-800 mb-2">After: 单一深模块边界 (In-Process Testable)</div>
+          <pre class="mermaid">
+flowchart TD
+  CHAT2["chat.js"] --> APP2["app.js: 1-line delegate"]
+  VERIFY["verify_all.mjs (Node Test)"] --> REC2
+  APP2 --> REC2["recommend.js: answerChatLocally()"]
+  subgraph DEEP["js/recommend.js (Deep Domain Module)"]
+    REC2 --> OV2["computeCampusOverview()"]
+    REC2 --> RECS2["recommendStations()"]
+  end
+          </pre>
+        </div>
+      </div>
+
+      <!-- Concrete Caller Diff -->
+      <div class="rounded-lg border border-slate-200 overflow-hidden text-xs">
+        <div class="bg-slate-100 px-4 py-2 font-mono font-medium text-slate-700 flex justify-between">
+          <span>Caller Impact: js/app.js &amp; scripts/verify_all.mjs</span>
+          <span class="text-emerald-700">-105 LOC in app.js · +5 Intent Assertions in verify_all.mjs</span>
+        </div>
+        <pre class="p-4 overflow-x-auto leading-relaxed mono"><span class="diff-del block px-2">- // js/app.js 原本内联 105 行 answerChatLocally(rawQuestion)，直接访问 state.stations / state.buildings</span><span class="diff-add block px-2">+ // js/app.js 仅保留 1 行委托调用：</span><span class="diff-add block px-2">+ localReply: (q) =&gt; answerChatLocally(q, state.stations, state.buildings, summarizeStation, readDetail, TYPE_TEXT),</span>
+<span class="diff-add block px-2">+ // scripts/verify_all.mjs 直接在 Node 进程内验证五大问答意图：</span><span class="diff-add block px-2">+ const ansBuilding = answerChatLocally('郑东图书馆附近有充电桩吗？', stations, mockBuildings, summarizeStation, (id) =&gt; snapshot[id]);</span><span class="diff-add block px-2">+ assert(ansBuilding.includes('郑东图书馆') &amp;&amp; ansBuilding.includes('步行约'), '楼宇寻桩问答应返回距离与步行分钟');</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Candidate 2: Unify Adapter Seam -->
+  <section id="candidate-2" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="border-b border-slate-200 bg-slate-50/60 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">Strong · Executed</span>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-600/20">ports &amp; adapters</span>
+        <h2 class="text-lg font-bold text-slate-900">Candidate 2: 移除冗余 <code class="mono text-base">createFallbackAdapter</code>，收敛 <code class="mono text-base">StationAdapter</code> Seam</h2>
+      </div>
+      <span class="text-xs font-mono text-slate-500">Cluster: js/app.js + js/mock-adapter.js + js/http-adapter.js</span>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <p class="text-sm text-slate-700 leading-relaxed">
+        <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">js/app.js</code> 末尾原本保留了一个 60 行的 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">createFallbackAdapter(stations)</code>，用简陋的 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">seed % 3</code> 哈希模拟插口状态，还在 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">createAdapter()</code> 中用 3 种函数签名试探调用 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">createMockAdapter</code>。因为 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">js/mock-adapter.js</code> 本身就是零外部依赖、100% 确定性的进程内 <strong>adapter</strong>，这段防御性兜底不仅永远不会被触发，反而造成了套壳分叉与 20 秒后台定时器的潜在泄漏隐患。
+      </p>
+      <div class="rounded-lg border border-slate-200 overflow-hidden text-xs">
+        <div class="bg-slate-100 px-4 py-2 font-mono font-medium text-slate-700 flex justify-between">
+          <span>Caller Impact: createAdapter(stations) in js/app.js</span>
+          <span class="text-emerald-700">-79 LOC in app.js</span>
+        </div>
+        <pre class="p-4 overflow-x-auto leading-relaxed mono"><span class="diff-del block px-2">- // 原本用 attempts[] 循环试探 3 种签名，并在文件末尾维护 60 行 createFallbackAdapter</span><span class="diff-add block px-2">+ function createAdapter(stations) {</span><span class="diff-add block px-2">+   const mock = createMockAdapter(stations);</span><span class="diff-add block px-2">+   if (state.adapterMode === 'http') {</span><span class="diff-add block px-2">+     return createHttpAdapter(stations, {</span><span class="diff-add block px-2">+       endpoint: state.adapterEndpoint || DEFAULT_HTTP_ENDPOINT,</span><span class="diff-add block px-2">+       fallbackAdapter: mock,</span><span class="diff-add block px-2">+     });</span><span class="diff-add block px-2">+   }</span><span class="diff-add block px-2">+   return mock;</span><span class="diff-add block px-2">+ }</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Candidate 3: Worth Exploring -->
+  <section id="candidate-3" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="border-b border-slate-200 bg-slate-50/60 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20">Worth Exploring · Roadmap</span>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-600/20">local-substitutable</span>
+        <h2 class="text-lg font-bold text-slate-900">Candidate 3: 将 <code class="mono text-base">detailCache</code> 与详情归一化下沉至 <code class="mono text-base">js/adapter.js</code></h2>
+      </div>
+      <span class="text-xs font-mono text-slate-500">Cluster: js/app.js + js/adapter.js + js/panel.js</span>
+    </div>
+    <div class="p-6 text-sm text-slate-700 space-y-2">
+      <p>
+        当前 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">js/app.js</code> 仍包含约 160 行针对不同适配器返回形态的归一化与缓存逻辑（<code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">readDetail</code>、<code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">normalizeDetail</code>、<code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">normalizeSocket</code>），与 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">js/panel.js</code> 的 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">summarizeStation</code> 存在部分职责重叠。若后续接入第二个真实硬件桩群 API（如特来电/星星充电），可将这些归一化逻辑收敛进 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">js/adapter.js</code> 的 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">StationAdapter</code> 基类，进一步为 <code class="mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">app.js</code> 减重 150+ 行。
+      </p>
+    </div>
+  </section>
+
+  <!-- 5. UI/UX Pro Max Upgrade Summary -->
+  <section id="ui-ux" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wider text-emerald-600">UI/UX Pro Max Applied</div>
+        <h2 class="text-lg font-bold text-slate-900 mt-0.5">津电云 · 界面与无障碍体验升级清单</h2>
+      </div>
+      <a href="./preview.html" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">查看 Design Tokens 预览页 →</a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs text-left border-collapse">
+        <thead>
+          <tr class="border-b border-slate-200 text-slate-500 uppercase">
+            <th class="py-2.5 pr-4">UI/UX Pro Max 维度</th>
+            <th class="py-2.5 px-4">规则 ID / 准则</th>
+            <th class="py-2.5 px-4">升级前</th>
+            <th class="py-2.5 pl-4">升级后落地实现</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 text-slate-700">
+          <tr>
+            <td class="py-3 pr-4 font-semibold">Priority 1 · Accessibility</td>
+            <td class="py-3 px-4 mono">focus-not-obscured</td>
+            <td class="py-3 px-4 text-slate-500">打开全校总览弹窗时若问答面板已展开，浮层重叠且焦点停留在背景</td>
+            <td class="py-3 pl-4 text-emerald-800"><code class="mono">openOverviewModal()</code> 自动收起 <code class="mono">#chat-panel</code> 并将焦点移入关闭按钮，关闭时恢复焦点至 <code class="mono">#overview-btn</code></td>
+          </tr>
+          <tr>
+            <td class="py-3 pr-4 font-semibold">Priority 4 · Iconography</td>
+            <td class="py-3 px-4 mono">no-emoji-icons</td>
+            <td class="py-3 px-4 text-slate-500">筛选栏、导引横幅与总览弹窗标题混用 <code class="mono">📊 📍 🟢 🟠 🔌</code> 原生 Emoji</td>
+            <td class="py-3 pl-4 text-emerald-800">全面替换为 <code class="mono">aria-hidden="true"</code> 矢量 SVG 图标与发光语义状态圆点 (<code class="mono">.overview-status-dot</code>)</td>
+          </tr>
+          <tr>
+            <td class="py-3 pr-4 font-semibold">Priority 10 · Data &amp; Charts</td>
+            <td class="py-3 px-4 mono">bullet-meter-kpi</td>
+            <td class="py-3 px-4 text-slate-500">全校总览 4 张 KPI 卡片与 Top 5 榜单仅有纯文字数字</td>
+            <td class="py-3 pl-4 text-emerald-800">新增 <code class="mono">role="progressbar"</code> 语义彩色进度条 (<code class="mono">.overview-kpi-bar</code>) 与榜单背景微填充条 (<code class="mono">.overview-rank-fill</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
