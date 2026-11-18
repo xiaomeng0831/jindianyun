@@ -2012,3 +2012,347 @@ ul.search-results li {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+
+/* 顶部总览按钮 */
+.filter-chip.overview-chip {
+  margin-left: auto;
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent, #2563eb);
+  font-weight: 600;
+}
+
+.filter-chip.overview-chip:hover {
+  background: rgba(37, 99, 235, 0.15);
+}
+
+/* 智能寻桩浮动导引条 */
+.guide-banner {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 25;
+  max-width: min(520px, calc(100vw - 24px));
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+.guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.guide-title {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.guide-title strong {
+  color: var(--accent, #2563eb);
+}
+
+.guide-close {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.guide-close:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.guide-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.guide-item {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2, rgba(148, 163, 184, 0.08));
+  color: var(--text);
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.guide-item.is-active {
+  border-color: var(--accent, #2563eb);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.guide-item-name {
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.guide-item-meta {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.guide-item-idle {
+  color: var(--idle, #16a34a);
+  font-weight: 600;
+}
+
+/* 全校总览与数据源弹窗 */
+.overview-modal[hidden] {
+  display: none !important;
+}
+
+.overview-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.overview-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.overview-card {
+  position: relative;
+  z-index: 1;
+  width: min(680px, 100%);
+  max-height: min(86vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.overview-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.overview-sub {
+  margin: 3px 0 0;
+  font-size: 0.76rem;
+  color: var(--text-3);
+}
+
+.overview-body {
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.overview-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 10px;
+}
+
+.overview-kpi {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2, rgba(148, 163, 184, 0.06));
+}
+
+.overview-kpi-val {
+  font-size: 1.35rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.overview-kpi-val.is-idle {
+  color: var(--idle, #16a34a);
+}
+
+.overview-kpi-label {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: var(--text-3);
+}
+
+.overview-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.overview-box {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.overview-box h3 {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.overview-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.overview-rank-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--surface-2, rgba(148, 163, 184, 0.06));
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.overview-rank-btn:hover {
+  border-color: var(--accent, #2563eb);
+}
+
+.overview-rank-badge {
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-rank-badge.is-idle {
+  color: var(--idle, #16a34a);
+}
+
+.overview-rank-badge.is-busy {
+  color: var(--charging, #f59e0b);
+}
+
+.datasource-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2, rgba(148, 163, 184, 0.05));
+}
+
+.datasource-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.datasource-title {
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.datasource-modes {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-3, rgba(148, 163, 184, 0.16));
+}
+
+.datasource-mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.datasource-mode-btn.is-active {
+  background: var(--accent, #2563eb);
+  color: #ffffff;
+}
+
+.datasource-endpoint-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.datasource-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.datasource-apply-btn {
+  border: 1px solid var(--accent, #2563eb);
+  background: var(--accent, #2563eb);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.datasource-hint {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: var(--text-3);
+}

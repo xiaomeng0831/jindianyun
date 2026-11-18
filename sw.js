@@ -4,7 +4,7 @@
  * 提供北洋园校区离线底图、站点数据与前端静态资源的离线运行支持。
  */
 
-const CACHE_NAME = 'jindianyun-v2';
+const CACHE_NAME = 'jindianyun-v3';
 
 const PRECACHE_ASSETS = [
   './',
@@ -19,6 +19,7 @@ const PRECACHE_ASSETS = [
   './js/basemap.js',
   './js/panel.js',
   './js/format.js',
+  './js/recommend.js',
   './js/mock-adapter.js',
   './js/http-adapter.js',
   './js/adapter.js',

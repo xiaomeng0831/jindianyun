@@ -72,6 +72,20 @@
   - **站点一键分享交互**：详情面板头部新增「🔗 复制站点分享链接」按钮（`data-action="share"`），点击将 `index.html#station-<id>` 写入剪贴板并弹出平滑 Toast 提示，方便师生快速分享点位。
   - **PWA 与离线支持**：新增 `manifest.webmanifest` 与矢量图标 `icon.svg`，编写 `sw.js` 实现核心资源（底图、站点、JS/CSS）的 Stale-While-Revalidate 离线缓存，支持移动端“添加到主屏幕”秒开底图。
 
+- **2026-11-18 v2 阶段：智能寻桩导引、全校总览看板、数据源切换与线上同步**
+  - **智能最近空闲桩推荐与地图导引线（`js/recommend.js` + `js/map.js`）**：
+    - 新增零依赖算法模块 `js/recommend.js`：实现球面距离计算 `haversineMeters`、步行耗时估算 `estimateWalkMinutes`、校外定位自动回退 `resolveCampusOrigin`（超出校区中心 3000m 时平滑回退至郑东图书馆）及综合推荐算法 `recommendStations`（兼顾距离近与空闲插口充裕：`score = 距离米数 - 空闲口数 × 18`）；
+    - 搜索框选中任意楼宇（如“38教学楼”“格园1斋”）或点击地图右下角新增的「📍 附近寻桩」按钮时，自动计算 Top 3 推荐充电站，弹出浮动导引栏 `#guide-banner` 支持一键切换候选；
+    - `MapView` 新增 `setGuideRoute` / `clearGuideRoute` / `focusGuideRoute`，在 Canvas 上原生绘制起点脉冲圆环、彩色虚线导引线与中点距离/步行时间胶囊标签（如 `约 145m · 步行 2 分钟`）。
+  - **全校充电状态总览看板（`#overview-btn` + `#overview-modal`）**：
+    - 顶部筛选栏右侧常驻显示全校实时空闲汇总（`📊 全校总览 · 空闲 X/290`）；
+    - 点击展开全校总览弹窗：展示全校总空闲插口、电动自行车（18站/229口）、电动汽车（8站/61口）、锂电柜（8组）四大 KPI 卡片，以及「🟢 当前空闲最充裕 Top 5」与「🟠 当前高峰繁忙站点 Top 5」双榜，点击任一站点直接定位并打开详情。
+  - **可视化数据源热切换与代理修复**：
+    - 总览弹窗底部内置「🔌 数据源模式切换」（确定性模拟数据 / 常青藤 HTTP 实时代理 + Endpoint 配置持久化 `jindianyun:adapter_config`），无需手改 URL 参数即可一键热切换；
+    - 修复 `scripts/cqt_proxy.mjs` 中 `/ NearDevice` 路径多余空格 bug，兼容 `OPEN_ID`/`CQT_OPEN_ID` 与 `PHONENUMBER`/`CQT_PHONENUMBER` 双变量名，同时支持 `/api/charging/status` 与 `/api/stations` 双路由；
+    - 修复 `js/panel.js` 分享链接哈希为 `#station=<id>`，并在 `parseStationHash` 中兼容 `#station=`、`#station-` 与裸 ID 三种格式。
+  - **测试扩展与线上同步**：`scripts/verify_all.mjs` 新增第 6 大项测试（覆盖球面距离、推荐排序、全满极端回退、全校聚合、哈希解析与静态代码断言），6/6 项全部通过并同步推送至 GitHub `origin/main`。
+
 ## 剩余待办
 - [x] 离线矢量底图数据（OSM → basemap.json）
 - [x] 18+8 个点位坐标（按命名建筑 + 北洋维基校正）
@@ -83,6 +97,7 @@
 - [x] 电动汽车 6 站预估插口数补齐（标记 `socketsApprox: true`）
 - [x] 真实数据 HTTP 适配器（`js/http-adapter.js`）与本地代理脚手架（`scripts/cqt_proxy.mjs`）
 - [x] PWA 离线支持（`manifest.webmanifest` + `sw.js`）与全链路测试套件（`scripts/verify_all.mjs`）
+- [x] 智能寻桩导引线（`js/recommend.js` + Canvas 导引层）、全校状态总览看板与数据源热切换 UI
 - [x] README / LICENSE / 预览截图
 - [x] **发布到 GitHub**：<https://github.com/xiaomeng0831/jindianyun>
   - 线上站点：<https://xiaomeng0831.github.io/jindianyun/>（GitHub Pages，main / root）
@@ -94,14 +109,15 @@
 ### 1. 架构速览
 ```text
 津电云/
-├── index.html                  # 页面结构（含 meta、filter-bar、map、panel、legend）
+├── index.html                  # 页面结构（含 meta、filter-bar、guide-banner、map、panel、overview-modal）
 ├── manifest.webmanifest        # PWA Web App 清单
-├── sw.js                       # Service Worker 离线缓存
+├── sw.js                       # Service Worker 离线缓存（v3）
 ├── icon.svg                    # 矢量品牌图标
-├── css/style.css               # 主题变量、深浅色适配、响应式栅格与抽屉面板
+├── css/style.css               # 主题变量、深浅色适配、响应式栅格、导引条与总览弹窗
 ├── js/
-│   ├── app.js                  # 入口与中枢：数据装载、事件编排、搜索与筛选联动、SW 注册
-│   ├── map.js                  # Canvas 2D 交互式地图渲染器（平移、缩放、图钉、视口变换）
+│   ├── app.js                  # 入口与中枢：数据装载、事件编排、寻桩导引、总览看板、数据源热切换
+│   ├── recommend.js            # 智能寻桩推荐、球面距离/步行估算、全校统计聚合与哈希解析纯函数库
+│   ├── map.js                  # Canvas 2D 交互式地图渲染器（平移、缩放、导引虚线、图钉、视口变换）
 │   ├── basemap.js              # 离线底图图层绘制（建筑、道路、水体、绿地、操场、文字注记）
 │   ├── panel.js                # 抽屉式详情面板：插口状态、24h 趋势图、错峰建议、收藏与分享
 │   ├── mock-adapter.js         # 确定性模拟适配器（作息曲线、15min 时段稳定、插口倒计时）
@@ -111,10 +127,10 @@
 │   ├── basemap.json            # 北洋园校区矢量底图（112 建筑、276 道路、87 水绿）
 │   └── stations.json           # 26 个充电点位基准定义（18 自行车 229 插口 8 柜，8 汽车 61 车位）
 ├── scripts/
-│   ├── verify_all.mjs          # 全套自动化回归与契约测试套件（接手前请先运行！）
+│   ├── verify_all.mjs          # 全套自动化回归与契约测试套件（6 大项，接手前请先运行！）
 │   ├── build_basemap.js        # 从 osm_raw.json 提取底图几何
 │   ├── build_stations.js       # 站点坐标定位与插口汇总
-│   └── cqt_proxy.mjs           # 常青藤接口本地中继代理
+│   └── cqt_proxy.mjs           # 常青藤接口本地中继代理（支持 /api/charging/status 与 /api/stations）
 └── 启动服务.command            # macOS 双击启动脚本（默认 8080 端口）
 ```
 

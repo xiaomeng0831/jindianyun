@@ -59,12 +59,20 @@
     <button type="button" class="filter-chip" data-filter="fav" aria-pressed="false">
       <span class="chip-star" aria-hidden="true">★</span><span>收藏</span><em class="chip-count" data-count="fav">0</em>
     </button>
+    <button type="button" id="overview-btn" class="filter-chip overview-chip" aria-haspopup="dialog">
+      <span>📊 全校总览</span><em class="chip-count" id="overview-idle-badge">空闲 --</em>
+    </button>
   </nav>
 
   <main class="app-main">
     <canvas id="map" class="map" role="img" aria-label="天津大学北洋园校区充电桩地图">您的浏览器不支持 Canvas，无法显示地图。</canvas>
 
+    <div id="guide-banner" class="guide-banner" role="region" aria-label="附近空闲充电桩推荐" hidden></div>
+
     <div class="map-controls" role="group" aria-label="地图视野控制">
+      <button id="map-locate" class="map-ctrl-btn" type="button" aria-label="附近空闲充电桩智能推荐" title="定位并推荐最近空闲充电桩">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
       <button id="map-zoom-in" class="map-ctrl-btn" type="button" aria-label="放大地图" title="放大 (+)">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
@@ -96,9 +104,23 @@
   </main>
 
   <footer class="site-footer">
-    <p class="footer-disclaimer">本站数据为<strong>模拟数据</strong>，非官方信息，仅供学习与参考；实际状态请以学校及运营方公布的信息为准。</p>
+    <p class="footer-disclaimer">本站数据为<strong id="footer-mode-label">模拟数据</strong>，非官方信息，仅供学习与参考；实际状态请以学校及运营方公布的信息为准。</p>
     <p class="footer-meta">津电云 · 天津大学北洋园校区 · 底图数据 © OpenStreetMap 贡献者</p>
   </footer>
+
+  <div id="overview-modal" class="overview-modal" role="dialog" aria-modal="true" aria-labelledby="overview-modal-title" hidden>
+    <div class="overview-backdrop" data-overview-close></div>
+    <div class="overview-card">
+      <header class="overview-head">
+        <div>
+          <h2 id="overview-modal-title" class="overview-title">北洋园校区充电实时总览</h2>
+          <p id="overview-sub" class="overview-sub">实时汇总 26 个站点插口与锂电柜状态</p>
+        </div>
+        <button type="button" class="icon-btn overview-close" data-overview-close aria-label="关闭总览看板">×</button>
+      </header>
+      <div id="overview-body" class="overview-body"></div>
+    </div>
+  </div>
 
   <div id="app-loading" class="app-loading" role="status" aria-live="polite">
     <span class="spinner" aria-hidden="true"></span>

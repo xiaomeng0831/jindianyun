@@ -20,16 +20,25 @@ import { loadBasemap } from './basemap.js';
 import { createMockAdapter, computeHourlyTrend } from './mock-adapter.js';
 import { createHttpAdapter } from './http-adapter.js';
 import { createStationPanel, summarizeStation, escapeHtml } from './panel.js';
+import {
+  recommendStations, computeCampusOverview, parseStationHash,
+  resolveCampusOrigin, CAMPUS_CENTER,
+} from './recommend.js';
 
 const STATIONS_URL = new URL('../data/stations.json', import.meta.url);
 const BASEMAP_URL = new URL('../data/basemap.json', import.meta.url);
 const TYPE_TEXT = { bike: '电动自行车', car: '电动汽车' };
 const FAVORITES_KEY = 'jindianyun:favorites';
+const ADAPTER_CONFIG_KEY = 'jindianyun:adapter_config';
+const DEFAULT_HTTP_ENDPOINT = 'http://localhost:8787/api/charging/status';
 
 const state = {
   stations: [],
   byId: new Map(),
   adapter: null,
+  unsubscribeAdapter: null,
+  adapterMode: 'mock',
+  adapterEndpoint: DEFAULT_HTTP_ENDPOINT,
   mapView: null,
   panel: null,
   selectedId: null,
@@ -42,6 +51,9 @@ const state = {
   buildings: [],
   filter: 'all',
   favorites: new Set(),
+  guideOrigin: null,
+  guideCandidates: [],
+  guideActiveId: null,
 };
 
 /* ---------------------------------------------------------------- 启动 */
@@ -68,6 +80,7 @@ async function boot() {
   loadFavorites();
   syncFavoritesToStations();
 
+  loadAdapterConfig();
   state.adapter = createAdapter(stations);
   applyOccupancyToStations();
 
@@ -91,6 +104,8 @@ async function boot() {
   }
 
   setupFilters();
+  setupOverviewModal();
+  setupGuideAndLocate();
   setupSearch();
   populateLegend();
   subscribeAdapter();
@@ -214,6 +229,52 @@ function handlePanelClose() {
 
 /* ------------------------------------------------------------ 适配器桥接 */
 
+function loadAdapterConfig() {
+  try {
+    const raw = localStorage.getItem(ADAPTER_CONFIG_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.mode === 'http' || parsed.mode === 'mock') state.adapterMode = parsed.mode;
+      if (typeof parsed.endpoint === 'string' && parsed.endpoint.trim()) {
+        state.adapterEndpoint = parsed.endpoint.trim();
+      }
+    }
+  } catch { /* 隐私模式忽略 */ }
+
+  try {
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('adapter') || window.JINDIANYUN_CONFIG?.adapter;
+    const endpoint = params.get('endpoint') || window.JINDIANYUN_CONFIG?.endpoint;
+    if (mode === 'http' || endpoint) {
+      state.adapterMode = 'http';
+      if (endpoint) state.adapterEndpoint = endpoint;
+    } else if (mode === 'mock') {
+      state.adapterMode = 'mock';
+    }
+  } catch { /* 忽略 URL 解析异常 */ }
+  syncFooterModeLabel();
+}
+
+function saveAdapterConfig(mode, endpoint) {
+  state.adapterMode = mode === 'http' ? 'http' : 'mock';
+  if (typeof endpoint === 'string' && endpoint.trim()) {
+    state.adapterEndpoint = endpoint.trim();
+  }
+  try {
+    localStorage.setItem(ADAPTER_CONFIG_KEY, JSON.stringify({
+      mode: state.adapterMode,
+      endpoint: state.adapterEndpoint,
+    }));
+  } catch { /* 忽略 */ }
+  syncFooterModeLabel();
+}
+
+function syncFooterModeLabel() {
+  const el = document.getElementById('footer-mode-label');
+  if (!el) return;
+  el.textContent = state.adapterMode === 'http' ? '实时代理（含模拟兜底）' : '模拟数据';
+}
+
 function createAdapter(stations) {
   let mock = null;
   const attempts = [
@@ -235,20 +296,30 @@ function createAdapter(stations) {
   }
   const fallback = mock || createFallbackAdapter(stations);
 
-  // 支持通过 URL 参数 (?adapter=http 或 ?endpoint=...) 或全局配置切换到 HTTP 实时适配器
-  try {
-    const params = new URLSearchParams(location.search);
-    const mode = params.get('adapter') || window.JINDIANYUN_CONFIG?.adapter;
-    const endpoint = params.get('endpoint') || window.JINDIANYUN_CONFIG?.endpoint;
-    if (mode === 'http' || endpoint) {
-      return createHttpAdapter(stations, {
-        endpoint: endpoint || 'http://localhost:8787/api/charging/status',
-        fallbackAdapter: fallback,
-      });
-    }
-  } catch { /* 忽略 URL 解析异常 */ }
+  if (state.adapterMode === 'http') {
+    return createHttpAdapter(stations, {
+      endpoint: state.adapterEndpoint || DEFAULT_HTTP_ENDPOINT,
+      fallbackAdapter: fallback,
+    });
+  }
 
   return fallback;
+}
+
+function switchAdapterMode(mode, endpoint) {
+  if (state.unsubscribeAdapter) {
+    try { state.unsubscribeAdapter(); } catch { /* 忽略 */ }
+    state.unsubscribeAdapter = null;
+  }
+  if (state.adapter && typeof state.adapter.stop === 'function') {
+    try { state.adapter.stop(); } catch { /* 忽略 */ }
+  }
+  saveAdapterConfig(mode, endpoint);
+  detailCache.clear();
+  state.adapter = createAdapter(state.stations);
+  subscribeAdapter();
+  handleAdapterUpdate();
+  showAppToast(state.adapterMode === 'http' ? '已切换至 HTTP 实时代理数据源' : '已切换至本地确定性模拟数据源');
 }
 
 function probeAdapter(adapter) {
@@ -384,7 +455,7 @@ function readUpdatedAt(detail) {
     ?? Date.now();
 }
 
-/** 把实时占用情况写回站点对象，供地图图钉按占用比例着色。 */
+/** 把实时占用情况写回站点对象，供地图图钉按占用比例着色，并同步全校总览数字。 */
 function applyOccupancyToStations() {
   for (const station of state.stations) {
     const detail = readDetail(station.id);
@@ -394,6 +465,14 @@ function applyOccupancyToStations() {
     station.occupied = summary.charging;
     station.occupancy = summary.charging / summary.total;
   }
+  updateOverviewBadge();
+}
+
+function updateOverviewBadge() {
+  const badge = document.getElementById('overview-idle-badge');
+  if (!badge) return;
+  const ov = computeCampusOverview(state.stations, summarizeStation, readDetail);
+  badge.textContent = `空闲 ${ov.totalIdle}/${ov.totalSockets}`;
 }
 
 function subscribeAdapter() {
@@ -402,7 +481,10 @@ function subscribeAdapter() {
   const onChange = (payload) => handleAdapterUpdate(payload);
 
   if (typeof adapter.subscribe === 'function') {
-    try { adapter.subscribe(onChange); return; } catch { /* 继续 */ }
+    try {
+      state.unsubscribeAdapter = adapter.subscribe(onChange);
+      return;
+    } catch { /* 继续 */ }
   }
   if (typeof adapter.onUpdate === 'function') {
     try { adapter.onUpdate(onChange); return; } catch { /* 继续 */ }
@@ -412,7 +494,8 @@ function subscribeAdapter() {
     try { adapter.on('change', onChange); return; } catch { /* 继续 */ }
   }
   // 无订阅能力时轮询，保证面板与列表不会停留在旧数据
-  window.setInterval(() => handleAdapterUpdate(), 5000);
+  const timerId = window.setInterval(() => handleAdapterUpdate(), 5000);
+  state.unsubscribeAdapter = () => window.clearInterval(timerId);
 }
 
 function handleAdapterUpdate() {
@@ -426,6 +509,13 @@ function handleAdapterUpdate() {
     if (detail) {
       state.panel.setDetail(detail, { updatedAt: readUpdatedAt(detail) });
     }
+  }
+  if (state.guideOrigin) {
+    refreshGuideCandidates();
+  }
+  const modal = document.getElementById('overview-modal');
+  if (modal && !modal.hidden) {
+    renderOverviewModal();
   }
   if (state.refreshing) {
     state.refreshing = false;
@@ -733,7 +823,7 @@ function renderResults(query, options = {}) {
           data-building="${escapeHtml(station.name)}" data-index="${index}" aria-selected="false">
           <span class="search-item-main">
             <span class="search-item-name">${highlightMatch(station.name, q)}</span>
-            <span class="search-item-meta">地图定位</span>
+            <span class="search-item-meta">寻最近空闲桩 · 地图导引</span>
           </span>
         </${itemTag}>`;
         return;
@@ -802,17 +892,14 @@ function searchBuildings(q, limit) {
   return hits.slice(0, limit).map(({ b }) => ({ ...b, kind: 'building' }));
 }
 
-/** 把地图移到某栋楼（不打开站点面板）。 */
+/** 把地图移到某栋楼，并自动推荐该楼宇附近的空闲充电桩与绘制导引线。 */
 function focusBuilding(building) {
-  state.selectedId = null;
-  if (state.panel?.isOpen) state.panel.close();
-  const map = state.mapView;
-  if (map) {
-    callFirst(map, ['focusPoint', 'focus', 'flyTo', 'panTo', 'centerOn'], building.lon, building.lat);
-    callFirst(map, ['setSelected', 'selectStation', 'highlightStation', 'setSelection'], null);
-  }
-  updateHash(null);
   closeResults();
+  startGuideFromOrigin({
+    lon: building.lon,
+    lat: building.lat,
+    name: building.name,
+  });
 }
 
 function handleSearchKeydown(event) {
@@ -931,9 +1018,306 @@ function populateLegend() {
     <span class="legend-item"><i class="legend-badge" aria-hidden="true">柜</i>锂电柜</span>`;
 }
 
+/* ---------------------------------------------------- 智能寻桩与地图导引 */
+
+function setupGuideAndLocate() {
+  const locateBtn = document.getElementById('map-locate');
+  if (locateBtn) {
+    locateBtn.addEventListener('click', () => handleLocateRecommend());
+  }
+  const banner = document.getElementById('guide-banner');
+  if (banner) {
+    banner.addEventListener('click', (event) => {
+      if (event.target.closest('[data-guide-close]')) {
+        clearGuide();
+        return;
+      }
+      const chip = event.target.closest('.guide-item[data-guide-id]');
+      if (chip) {
+        activateGuideCandidate(chip.dataset.guideId);
+      }
+    });
+  }
+}
+
+function handleLocateRecommend() {
+  if (!navigator.geolocation) {
+    showAppToast('浏览器不支持定位，已按校区中心（郑东图书馆）推荐附近空闲桩');
+    startGuideFromOrigin(CAMPUS_CENTER);
+    return;
+  }
+  showAppToast('正在获取位置并计算最近空闲充电桩…');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const resolved = resolveCampusOrigin(
+        pos.coords.longitude,
+        pos.coords.latitude,
+        '我的位置',
+      );
+      if (resolved.fallback) {
+        showAppToast('当前定位不在北洋园校区内，已按郑东图书馆推荐附近空闲桩');
+      } else {
+        showAppToast('已为您推荐距离最近且有空位的充电站');
+      }
+      startGuideFromOrigin(resolved);
+    },
+    () => {
+      showAppToast('未能获取定位权限，已按校区中心（郑东图书馆）推荐附近空闲桩');
+      startGuideFromOrigin(CAMPUS_CENTER);
+    },
+    { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 },
+  );
+}
+
+function startGuideFromOrigin(origin) {
+  if (!origin || !Number.isFinite(origin.lon) || !Number.isFinite(origin.lat)) return;
+  state.guideOrigin = { lon: Number(origin.lon), lat: Number(origin.lat), name: String(origin.name || '当前位置') };
+  state.guideCandidates = recommendStations(
+    state.guideOrigin,
+    state.stations,
+    summarizeStation,
+    readDetail,
+    { limit: 3, filter: state.filter === 'car' ? 'car' : (state.filter === 'cabinet' ? 'cabinet' : 'all') },
+  );
+  if (!state.guideCandidates.length) return;
+  const best = state.guideCandidates[0];
+  state.guideActiveId = best.station.id;
+  renderGuideBanner();
+  applyGuideToMap(best, true);
+}
+
+function refreshGuideCandidates() {
+  if (!state.guideOrigin) return;
+  state.guideCandidates = recommendStations(
+    state.guideOrigin,
+    state.stations,
+    summarizeStation,
+    readDetail,
+    { limit: 3, filter: state.filter === 'car' ? 'car' : (state.filter === 'cabinet' ? 'cabinet' : 'all') },
+  );
+  if (!state.guideCandidates.length) {
+    clearGuide();
+    return;
+  }
+  const active = state.guideCandidates.find((c) => c.station.id === state.guideActiveId) || state.guideCandidates[0];
+  state.guideActiveId = active.station.id;
+  renderGuideBanner();
+  applyGuideToMap(active, false);
+}
+
+function activateGuideCandidate(stationId) {
+  const found = state.guideCandidates.find((c) => c.station.id === stationId);
+  if (!found) return;
+  state.guideActiveId = found.station.id;
+  renderGuideBanner();
+  applyGuideToMap(found, true);
+}
+
+function applyGuideToMap(candidate, focusViewport = false) {
+  if (!candidate || !state.guideOrigin) return;
+  selectStation(candidate.station, { force: true });
+  const map = state.mapView;
+  if (map) {
+    callFirst(map, ['setGuideRoute'], state.guideOrigin, candidate.station, {
+      meters: candidate.meters,
+      walkMinutes: candidate.walkMinutes,
+      idle: candidate.idle,
+    });
+    if (focusViewport) {
+      callFirst(map, ['focusGuideRoute'], state.guideOrigin, candidate.station);
+    }
+  }
+}
+
+function renderGuideBanner() {
+  const banner = document.getElementById('guide-banner');
+  if (!banner) return;
+  if (!state.guideOrigin || !state.guideCandidates.length) {
+    banner.hidden = true;
+    banner.innerHTML = '';
+    return;
+  }
+  const itemsHtml = state.guideCandidates.map((item, idx) => {
+    const active = item.station.id === state.guideActiveId;
+    const rankLabel = idx === 0 ? '首选' : `备选 ${idx}`;
+    return `
+      <button type="button" class="guide-item${active ? ' is-active' : ''}" data-guide-id="${escapeHtml(item.station.id)}">
+        <span class="guide-item-name">${rankLabel} · ${escapeHtml(item.station.name)}</span>
+        <span class="guide-item-meta">约 ${item.meters}m（步行 ${item.walkMinutes} 分钟）· <span class="guide-item-idle">空闲 ${item.idle}/${item.total}</span></span>
+      </button>`;
+  }).join('');
+
+  banner.innerHTML = `
+    <div class="guide-head">
+      <span class="guide-title">📍 从 <strong>${escapeHtml(state.guideOrigin.name)}</strong> 出发推荐最近空闲桩</span>
+      <button type="button" class="guide-close" data-guide-close aria-label="关闭寻桩导引">×</button>
+    </div>
+    <div class="guide-list">${itemsHtml}</div>`;
+  banner.hidden = false;
+}
+
+function clearGuide() {
+  state.guideOrigin = null;
+  state.guideCandidates = [];
+  state.guideActiveId = null;
+  const banner = document.getElementById('guide-banner');
+  if (banner) {
+    banner.hidden = true;
+    banner.innerHTML = '';
+  }
+  if (state.mapView) {
+    callFirst(state.mapView, ['clearGuideRoute']);
+  }
+}
+
+/* ---------------------------------------------------- 全校总览与数据源弹窗 */
+
+function setupOverviewModal() {
+  const trigger = document.getElementById('overview-btn');
+  const modal = document.getElementById('overview-modal');
+  if (!trigger || !modal) return;
+
+  trigger.addEventListener('click', () => openOverviewModal());
+  modal.addEventListener('click', (event) => {
+    if (event.target.closest('[data-overview-close]')) {
+      closeOverviewModal();
+      return;
+    }
+    const stationBtn = event.target.closest('[data-overview-station]');
+    if (stationBtn) {
+      const id = stationBtn.dataset.overviewStation;
+      closeOverviewModal();
+      const station = state.byId.get(id);
+      if (station) selectStation(station, { force: true });
+      return;
+    }
+    const modeBtn = event.target.closest('[data-ds-mode]');
+    if (modeBtn) {
+      const nextMode = modeBtn.dataset.dsMode;
+      const input = document.getElementById('ds-endpoint-input');
+      const ep = input ? input.value.trim() : state.adapterEndpoint;
+      switchAdapterMode(nextMode, ep);
+      renderOverviewModal();
+      return;
+    }
+    if (event.target.closest('[data-ds-apply]')) {
+      const input = document.getElementById('ds-endpoint-input');
+      const ep = input ? input.value.trim() : state.adapterEndpoint;
+      switchAdapterMode('http', ep || DEFAULT_HTTP_ENDPOINT);
+      renderOverviewModal();
+    }
+  });
+}
+
+function openOverviewModal() {
+  const modal = document.getElementById('overview-modal');
+  if (!modal) return;
+  renderOverviewModal();
+  modal.hidden = false;
+}
+
+function closeOverviewModal() {
+  const modal = document.getElementById('overview-modal');
+  if (!modal) return;
+  modal.hidden = true;
+}
+
+function renderOverviewModal() {
+  const body = document.getElementById('overview-body');
+  if (!body) return;
+  const ov = computeCampusOverview(state.stations, summarizeStation, readDetail);
+
+  const renderRankItem = (item, isBusy = false) => {
+    const pct = Math.round(item.ratio * 100);
+    return `
+      <li>
+        <button type="button" class="overview-rank-btn" data-overview-station="${escapeHtml(item.station.id)}">
+          <span>${escapeHtml(item.station.name)}</span>
+          <span class="overview-rank-badge ${isBusy ? 'is-busy' : 'is-idle'}">
+            ${isBusy ? `占用 ${pct}%（余 ${item.idle} 口）` : `空闲 ${item.idle}/${item.total} 口`}
+          </span>
+        </button>
+      </li>`;
+  };
+
+  const isHttp = state.adapterMode === 'http';
+
+  body.innerHTML = `
+    <div class="overview-kpis">
+      <div class="overview-kpi">
+        <div class="overview-kpi-val is-idle">${ov.totalIdle} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.totalSockets}</small></div>
+        <div class="overview-kpi-label">全校当前空闲插口（总占用率 ${ov.occupancyRate}%）</div>
+      </div>
+      <div class="overview-kpi">
+        <div class="overview-kpi-val">${ov.bike.idle} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.bike.sockets}</small></div>
+        <div class="overview-kpi-label">电动自行车空闲（${ov.bike.stations} 站）</div>
+      </div>
+      <div class="overview-kpi">
+        <div class="overview-kpi-val">${ov.car.idle} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.car.sockets}</small></div>
+        <div class="overview-kpi-label">电动汽车空闲（${ov.car.stations} 站）</div>
+      </div>
+      <div class="overview-kpi">
+        <div class="overview-kpi-val">${ov.cabinets.availableSlots} <small style="font-size:0.8rem;font-weight:500;color:var(--text-3)">/ ${ov.cabinets.totalSlots || 48}</small></div>
+        <div class="overview-kpi-label">锂电柜可用电池（${ov.cabinets.totalGroups} 组换电柜）</div>
+      </div>
+    </div>
+
+    <div class="overview-cols">
+      <div class="overview-box">
+        <h3>🟢 当前空闲最充裕 Top 5（点击直接前往）</h3>
+        <ul class="overview-rank">
+          ${ov.topIdle.map((it) => renderRankItem(it, false)).join('')}
+        </ul>
+      </div>
+      <div class="overview-box">
+        <h3>🟠 当前高峰繁忙站点 Top 5（建议错峰）</h3>
+        <ul class="overview-rank">
+          ${ov.topCrowded.map((it) => renderRankItem(it, true)).join('')}
+        </ul>
+      </div>
+    </div>
+
+    <div class="datasource-card">
+      <div class="datasource-head">
+        <span class="datasource-title">🔌 数据源模式切换</span>
+        <div class="datasource-modes" role="group" aria-label="选择数据源模式">
+          <button type="button" class="datasource-mode-btn${!isHttp ? ' is-active' : ''}" data-ds-mode="mock">确定性模拟数据</button>
+          <button type="button" class="datasource-mode-btn${isHttp ? ' is-active' : ''}" data-ds-mode="http">常青藤 HTTP 实时代理</button>
+        </div>
+      </div>
+      <div class="datasource-endpoint-row">
+        <input id="ds-endpoint-input" class="datasource-input" type="url" value="${escapeHtml(state.adapterEndpoint)}" placeholder="http://localhost:8787/api/charging/status">
+        <button type="button" class="datasource-apply-btn" data-ds-apply>应用代理</button>
+      </div>
+      <p class="datasource-hint">
+        当前状态：<strong>${isHttp ? 'HTTP 实时代理模式（未覆盖站点或代理离线时自动无缝回退模拟数据）' : '本地确定性模拟模式（按校园四大作息曲线每 30 秒实时演化）'}</strong>。本地联调可运行 <code>node scripts/cqt_proxy.mjs</code>。
+      </p>
+    </div>`;
+}
+
+let appToastTimer = 0;
+function showAppToast(msg) {
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.className = 'app-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('is-visible');
+  window.clearTimeout(appToastTimer);
+  appToastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 2500);
+}
+
 function setupGlobalHandlers() {
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    const modal = document.getElementById('overview-modal');
+    if (modal && !modal.hidden) {
+      closeOverviewModal();
+      return;
+    }
     if (state.resultsEl && !state.resultsEl.hidden) return;
     if (state.panel?.isOpen) state.panel.close();
   });
@@ -962,15 +1346,8 @@ function updateHash(stationId) {
 }
 
 function restoreFromHash() {
-  let raw = '';
-  try {
-    raw = decodeURIComponent(location.hash.replace(/^#/, ''));
-  } catch {
-    // 哈希中有非法百分号编码（例如 #%），当作没有哈希处理
-    raw = '';
-  }
-  if (!raw) return;
-  const id = raw.startsWith('station=') ? raw.slice('station='.length) : raw;
+  const id = parseStationHash(location.hash);
+  if (!id) return;
   const station = state.byId.get(id);
   if (station) selectStation(station);
 }

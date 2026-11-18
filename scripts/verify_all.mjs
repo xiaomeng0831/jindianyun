@@ -27,8 +27,12 @@ import {
   formatDuration, formatRelativeTime, formatClock, formatDate,
   formatSockets, formatNumber, toDate, debounce
 } from '../js/format.js';
-import { normalizeStatus, toTimestamp, escapeHtml, formatRemaining } from '../js/panel.js';
+import { normalizeStatus, toTimestamp, escapeHtml, formatRemaining, summarizeStation } from '../js/panel.js';
 import { SOCKET_STATUS } from '../js/adapter.js';
+import {
+  haversineMeters, estimateWalkMinutes, recommendStations,
+  computeCampusOverview, parseStationHash, resolveCampusOrigin,
+} from '../js/recommend.js';
 
 let passed = 0;
 let failed = 0;
@@ -236,6 +240,82 @@ testSection('5. 状态归一化与 HTML 安全转义 (js/panel.js) 校验', () =
 
   assert(toTimestamp('14:30') > 0, 'HH:mm 转时间戳');
   assert(toTimestamp(1762860000000) === 1762860000000, '毫秒时间戳转换');
+});
+
+// 6. 智能寻桩推荐、全校概览聚合与哈希解析校验
+testSection('6. 智能寻桩推荐与全校概览聚合 (js/recommend.js) 校验', () => {
+  const stations = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'stations.json'), 'utf8'));
+  const adapter = createMockAdapter(stations);
+  const snapshot = adapter.getSnapshot();
+  adapter.stop();
+
+  // 球面距离与步行耗时
+  const dist = haversineMeters(117.30754, 38.99658, 117.309987, 39.002503);
+  assert(dist > 600 && dist < 800, `球面距离计算异常: ${dist}`);
+  assert(estimateWalkMinutes(120) === 2, '步行时间估算异常');
+
+  // 校外定位回退至校区中心
+  const farOrigin = resolveCampusOrigin(116.4, 39.9, '校外测试点');
+  assert(farOrigin.fallback === true, '超过 3000m 的校外坐标应触发校区中心回退');
+  const insideOrigin = resolveCampusOrigin(117.308, 38.997, '郑东图书馆');
+  assert(insideOrigin.fallback === false && insideOrigin.name === '郑东图书馆', '校内坐标不应触发回退');
+
+  // 智能推荐 Top 3
+  const recs = recommendStations(
+    { lon: 117.3099, lat: 39.0024, name: '格园1斋' },
+    stations,
+    summarizeStation,
+    (id) => snapshot[id],
+    { limit: 3, filter: 'bike' },
+  );
+  assert(Array.isArray(recs) && recs.length === 3, '应返回 Top 3 推荐站点');
+  assert(recs[0].station.id === 'bike-geyuan-1', `格园1斋起点应首选格园1斋充电站，实际为 ${recs[0].station.id}`);
+  assert(Number.isFinite(recs[0].meters) && recs[0].walkMinutes >= 1, '推荐结果需包含距离与步行分钟');
+
+  // 全满极端情况测试：所有站点空闲均为 0 时仍返回最近站点
+  const zeroReader = (id) => ({
+    stationId: id,
+    updatedAt: Date.now(),
+    sockets: Array.from({ length: 10 }, (_, i) => ({ no: i + 1, status: 'charging' })),
+  });
+  const fullRecs = recommendStations(
+    { lon: 117.3099, lat: 39.0024, name: '格园1斋' },
+    stations,
+    summarizeStation,
+    zeroReader,
+    { limit: 2, filter: 'bike' },
+  );
+  assert(fullRecs.length === 2 && fullRecs[0].idle === 0, '全满极端情况下应按距离回退返回站点');
+
+  // 全校总览聚合
+  const overview = computeCampusOverview(stations, summarizeStation, (id) => snapshot[id]);
+  assert(overview.totalStations === 26, '全校总站点数应为 26');
+  assert(overview.bike.stations === 18 && overview.bike.sockets === 229, '自行车站汇总应为 18 站 229 口');
+  assert(overview.car.stations === 8 && overview.car.sockets === 61, '汽车站汇总应为 8 站 61 口');
+  assert(overview.cabinets.totalGroups === 8, '锂电柜组数应为 8');
+  assert(Array.isArray(overview.topIdle) && overview.topIdle.length > 0, '空闲榜不应为空');
+
+  // 哈希解析兼容
+  assert(parseStationHash('#station=bike-geyuan-1') === 'bike-geyuan-1', '应支持 #station= 格式');
+  assert(parseStationHash('#station-bike-geyuan-1') === 'bike-geyuan-1', '应兼容 #station- 格式');
+  assert(parseStationHash('#bike-geyuan-1') === 'bike-geyuan-1', '应兼容裸 id 格式');
+  assert(parseStationHash('#%') === '', '非法百分号编码应安全返回空串');
+
+  // 代理脚本与面板哈希一致性静态断言
+  const proxySrc = fs.readFileSync(path.join(ROOT, 'scripts', 'cqt_proxy.mjs'), 'utf8');
+  assert(!proxySrc.includes("'/ NearDevice'"), 'cqt_proxy.mjs 不应包含带空格的 / NearDevice');
+  assert(proxySrc.includes("'/NearDevice'"), 'cqt_proxy.mjs 应使用 /NearDevice');
+  assert(proxySrc.includes('CQT_OPEN_ID') && proxySrc.includes('/api/stations'), 'cqt_proxy.mjs 应兼容 CQT_OPEN_ID 与 /api/stations');
+
+  const panelSrc = fs.readFileSync(path.join(ROOT, 'js', 'panel.js'), 'utf8');
+  assert(panelSrc.includes('station=${encodeURIComponent'), 'panel.js 分享链接应使用 #station= 格式');
+
+  const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(indexHtml.includes('id="overview-btn"') && indexHtml.includes('id="overview-modal"'), 'index.html 应包含全校总览按钮与弹窗');
+  assert(indexHtml.includes('id="guide-banner"') && indexHtml.includes('id="map-locate"'), 'index.html 应包含附近寻桩按钮与导引浮层');
+
+  const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  assert(swSrc.includes('./js/recommend.js'), 'sw.js 离线预缓存列表应包含 ./js/recommend.js');
 });
 
 console.log('='.repeat(60));

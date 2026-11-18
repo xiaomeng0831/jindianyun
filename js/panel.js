@@ -843,7 +843,7 @@ export class StationPanel {
   async _copyShareLink() {
     if (!this._station) return;
     const url = new URL(window.location.href);
-    url.hash = `station-${encodeURIComponent(this._station.id)}`;
+    url.hash = `station=${encodeURIComponent(this._station.id)}`;
     const text = url.toString();
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {

@@ -45,8 +45,8 @@ loadDotEnv();
 const PORT = Number(process.env.PORT) || 8787;
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || '*';
 const CQT_BASE_URL = process.env.CQT_BASE_URL || 'https://m.sgdq123.com:8601';
-const OPEN_ID = process.env.OPEN_ID || '';
-const PHONENUMBER = process.env.PHONENUMBER || '';
+const OPEN_ID = process.env.OPEN_ID || process.env.CQT_OPEN_ID || '';
+const PHONENUMBER = process.env.PHONENUMBER || process.env.CQT_PHONENUMBER || '';
 const CACHE_TTL_MS = Math.max(30_000, Number(process.env.CACHE_TTL_MS) || 60_000);
 const FORCE_MOCK = process.argv.includes('--mock') || !OPEN_ID;
 
@@ -70,7 +70,7 @@ async function fetchUpstream() {
   // 北洋园校区中心坐标
   const lon = process.env.LONGITUDE || '117.3085';
   const lat = process.env.LATITUDE || '38.9965';
-  const url = new URL('/ NearDevice', CQT_BASE_URL.endsWith('/') ? CQT_BASE_URL : `${CQT_BASE_URL}/`);
+  const url = new URL('/NearDevice', CQT_BASE_URL.endsWith('/') ? CQT_BASE_URL : `${CQT_BASE_URL}/`);
 
   const response = await fetch(url, {
     method: 'POST',
@@ -221,7 +221,7 @@ createServer(async (req, res) => {
   }
 
   const url = new URL(req.url || '/', `http://localhost:${PORT}`);
-  if (req.method === 'GET' && url.pathname === '/api/charging/status') {
+  if (req.method === 'GET' && (url.pathname === '/api/charging/status' || url.pathname === '/api/stations')) {
     try {
       const payload = await getStatusSnapshot();
       res.writeHead(200, {

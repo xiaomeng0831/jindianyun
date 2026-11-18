@@ -266,6 +266,54 @@ export class MapView {
     this._requestDraw();
   }
 
+  /** 设置起点到目标充电站的导引连线。 */
+  setGuideRoute(origin, targetStation, meta = {}) {
+    if (!origin || !targetStation || !Number.isFinite(origin.lon) || !Number.isFinite(targetStation.lon)) {
+      this.clearGuideRoute();
+      return;
+    }
+    this._guideRoute = {
+      origin: { lon: Number(origin.lon), lat: Number(origin.lat), name: String(origin.name || '起点') },
+      target: { lon: Number(targetStation.lon), lat: Number(targetStation.lat), id: targetStation.id, name: targetStation.name || '' },
+      meta: { ...meta },
+    };
+    this._requestDraw();
+  }
+
+  /** 清除地图上的导引连线。 */
+  clearGuideRoute() {
+    if (!this._guideRoute) return;
+    this._guideRoute = null;
+    this._requestDraw();
+  }
+
+  /** 将视野自适应至同时包含导引起点与目标充电站。 */
+  focusGuideRoute(origin, targetStation) {
+    if (!origin || !targetStation) return;
+    const minLon = Math.min(origin.lon, targetStation.lon);
+    const maxLon = Math.max(origin.lon, targetStation.lon);
+    const minLat = Math.min(origin.lat, targetStation.lat);
+    const maxLat = Math.max(origin.lat, targetStation.lat);
+    const lonSpan = Math.max((maxLon - minLon) * 1.45, 0.0042);
+    const latSpan = Math.max((maxLat - minLat) * 1.45, 0.0032);
+    const clon = (minLon + maxLon) / 2;
+    const clat = (minLat + maxLat) / 2;
+    const fb = fitView(
+      [clon - lonSpan / 2, clat - latSpan / 2, clon + lonSpan / 2, clat + latSpan / 2],
+      this._size.w,
+      this._size.h,
+      Math.max(64, Number(this.options.padding) || 36),
+    );
+    const z = clamp(Math.log2(fb.scale / this._baseScale), MIN_ZOOM, MAX_ZOOM);
+    const scale = this._baseScale * Math.pow(2, z);
+    const offsetX = this._size.w >= 900 ? 140 / scale : 0;
+    this._cancelAnimation();
+    this._usingFit = false;
+    this._zoom = z;
+    this._center = { x: fb.cx + offsetX, y: fb.cy };
+    this._requestDraw();
+  }
+
   /** 让所有站点点位铺满视野。 */
   fitToStations() {
     if (!this.stations.length) {
@@ -493,9 +541,89 @@ export class MapView {
     this._drawStaticLayer(ctx, view, w, h);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this._drawGuideRoute(ctx, view, w, h);
     this._drawStations(ctx, view, w, h);
     if (this.options.scaleBar !== false) this._drawScaleBar(ctx, view, w, h);
     if (this.options.attribution !== false) this._drawAttribution(ctx, w, h);
+  }
+
+  _drawGuideRoute(ctx, view, w, h) {
+    if (!this._guideRoute) return;
+    const { origin, target, meta } = this._guideRoute;
+    const po = projectLonLat(origin.lon, origin.lat);
+    const pt = projectLonLat(target.lon, target.lat);
+    const ox = (po.x - view.cx) * view.scale + w / 2;
+    const oy = (po.y - view.cy) * view.scale + h / 2;
+    const tx = (pt.x - view.cx) * view.scale + w / 2;
+    const ty = (pt.y - view.cy) * view.scale + h / 2;
+
+    ctx.save();
+    // 1. 外层柔光连线
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(tx, ty);
+    ctx.strokeStyle = 'rgba(37, 99, 235, 0.22)';
+    ctx.lineWidth = 6.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // 2. 内层高对比虚线
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(tx, ty);
+    ctx.setLineDash([7, 5]);
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 3. 起点脉冲圆点
+    ctx.beginPath();
+    ctx.arc(ox, oy, 13, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.18)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(ox, oy, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#2563eb';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+
+    // 4. 起点文字胶囊
+    const originLabel = `起点：${origin.name || '当前位置'}`;
+    ctx.font = `600 11px ${this.theme.font}`;
+    const ow = ctx.measureText(originLabel).width + 14;
+    const oh = 20;
+    const olx = ox - ow / 2;
+    const oly = oy - 28;
+    roundRect(ctx, olx, oly, ow, oh, 10);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(originLabel, ox, oly + oh / 2);
+
+    // 5. 中点距离与步行时间胶囊
+    if (meta && Number.isFinite(meta.meters)) {
+      const midX = (ox + tx) / 2;
+      const midY = (oy + ty) / 2 - 12;
+      const badge = `约 ${meta.meters}m · 步行 ${meta.walkMinutes || 1} 分钟`;
+      const bw = ctx.measureText(badge).width + 16;
+      const bh = 21;
+      roundRect(ctx, midX - bw / 2, midY - bh / 2, bw, bh, 10.5);
+      ctx.fillStyle = '#2563eb';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(badge, midX, midY);
+    }
+
+    ctx.restore();
   }
 
   _drawStaticLayer(ctx, view, w, h) {
