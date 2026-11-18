@@ -22,12 +22,12 @@ const EARTH_RADIUS = 6378137;
 /* 投影与视口                                                          */
 /* ------------------------------------------------------------------ */
 
-/** 经纬度 → Web Mercator 世界坐标（弧度）。 */
+/** 经纬度 → Web Mercator 世界坐标（弧度，Y 轴朝下适配 Canvas 屏幕坐标，上北下南）。 */
 export function projectLonLat(lon, lat) {
   const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
   return {
     x: lon * DEG,
-    y: Math.log(Math.tan(Math.PI / 4 + (clamped * DEG) / 2)),
+    y: -Math.log(Math.tan(Math.PI / 4 + (clamped * DEG) / 2)),
   };
 }
 
@@ -35,7 +35,7 @@ export function projectLonLat(lon, lat) {
 export function unprojectPoint(x, y) {
   return [
     x / DEG,
-    (2 * Math.atan(Math.exp(y)) - Math.PI / 2) / DEG,
+    (2 * Math.atan(Math.exp(-y)) - Math.PI / 2) / DEG,
   ];
 }
 

@@ -33,6 +33,7 @@ import {
   haversineMeters, estimateWalkMinutes, recommendStations,
   computeCampusOverview, parseStationHash, resolveCampusOrigin,
 } from '../js/recommend.js';
+import { projectLonLat, unprojectPoint } from '../js/basemap.js';
 
 let passed = 0;
 let failed = 0;
@@ -320,6 +321,16 @@ testSection('6. 智能寻桩推荐与全校概览聚合 (js/recommend.js) 校验
   const fallbackPath = path.join(ROOT, 'js', 'file-fallback.js');
   assert(fs.existsSync(fallbackPath) && fs.statSync(fallbackPath).size > 100000, 'js/file-fallback.js 必须存在且包含完整回退包');
   assert(indexHtml.includes('js/file-fallback.js'), 'index.html 应在 file:// 协议下自动挂载 js/file-fallback.js');
+
+  // 地图投影方向校验：上北下南（北侧纬度更高，屏幕 Y 坐标应更小）、左西右东
+  const north = projectLonLat(117.309987, 39.002503); // 格园1斋（北）
+  const south = projectLonLat(117.311285, 38.989090); // 南门（南）
+  const west = projectLonLat(117.304173, 38.996739);  // 大通学生中心（西）
+  const east = projectLonLat(117.315907, 38.998351);  // 31教（东）
+  assert(north.y < south.y, '地图投影必须满足上北下南（北侧 Y < 南侧 Y）');
+  assert(west.x < east.x, '地图投影必须满足左西右东（西侧 X < 东侧 X）');
+  const [rtLon, rtLat] = unprojectPoint(north.x, north.y);
+  assert(Math.abs(rtLon - 117.309987) < 1e-6 && Math.abs(rtLat - 39.002503) < 1e-6, 'unprojectPoint 逆投影应精确还原经纬度');
 });
 
 console.log('='.repeat(60));

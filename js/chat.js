@@ -51,6 +51,7 @@ export function mountChatWidget(root, options = {}) {
 
   root.dataset.mounted = 'true';
   const getContext = typeof options.getContext === 'function' ? options.getContext : () => '';
+  const localReply = typeof options.localReply === 'function' ? options.localReply : null;
 
   let messages = loadHistory();
   let pending = false;
@@ -161,14 +162,34 @@ export function mountChatWidget(root, options = {}) {
       console.error('[津电云] 助手上下文生成失败', error);
     }
 
+    const transcript = transcriptForRequest();
+    const lastQuestion = transcript.length ? transcript[transcript.length - 1].content : '';
+
     try {
-      const reply = await postChat(transcriptForRequest(), context, controller.signal);
+      let reply = await postChat(transcript, context, controller.signal);
       if (gen !== generation) return;
+      if (localReply && /没有提供充电站的实时状态信息|无法判断哪些站点/.test(reply)) {
+        const local = localReply(lastQuestion, transcript);
+        if (local) reply = local;
+      }
       messages.push({ role: 'assistant', content: reply });
       persist();
       setStatus(reply);
     } catch (error) {
       if (gen !== generation) return;
+      if (localReply && !controller.signal.aborted) {
+        try {
+          const fallback = localReply(lastQuestion, transcript);
+          if (typeof fallback === 'string' && fallback.trim()) {
+            messages.push({ role: 'assistant', content: fallback.trim() });
+            persist();
+            setStatus(fallback.trim());
+            return;
+          }
+        } catch (localErr) {
+          console.error('[津电云] 本地问答回退失败', localErr);
+        }
+      }
       const text = messageForFailure(error, controller.signal.aborted);
       messages.push({ role: 'error', content: text });
       setStatus(text);

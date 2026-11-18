@@ -2400,7 +2400,7 @@ body.app-ready .chat-widget {
 @media (min-width: 900px) {
   .chat-widget {
     right: calc(16px + env(safe-area-inset-right));
-    bottom: calc(184px + env(safe-area-inset-bottom) + var(--chat-vv-offset, 0px));
+    bottom: calc(226px + env(safe-area-inset-bottom) + var(--chat-vv-offset, 0px));
     left: auto;
   }
 
