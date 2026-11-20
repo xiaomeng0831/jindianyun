@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import httpx
+from facts import build_fact_sheet, parse_context_payload
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,8 +29,9 @@ MODEL = os.environ.get("SILICONFLOW_MODEL", "Qwen/Qwen3-8B")
 KEY_PATH = Path(os.environ.get("SILICONFLOW_KEY_FILE", os.path.expanduser("~/.sf_key")))
 MAX_MESSAGES = 12
 MAX_INPUT_CHARS = 4000
-MAX_CONTEXT_CHARS = 2000
-# 旧页面自己截到约 1800 字。更长的自由文本不进模型，避免把指令塞进上下文。
+# 页面一次大约 9.3k 字（26 个站加约 80 栋楼的中心）。12000 只给这份结构化数据留余量。
+MAX_CONTEXT_CHARS = 12000
+# 不是 JSON 的自由文本最多 2000 字，和旧页面自己截断的长度一致，不能把整段当系统提示。
 LEGACY_CONTEXT_LIMIT = 2000
 MAX_CONTENT_CHARS = 2000
 MAX_TOKENS = 1200
@@ -446,7 +448,14 @@ async def chat(payload: ChatRequest, request: Request):
         return error(400, "请至少提供一条用户消息")
 
     upstream_messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    upstream_messages.extend(context_as_messages(payload.context))
+    parsed = parse_context_payload(payload.context) if payload.context else None
+    if parsed is not None:
+        user_text = "\n".join(m.content for m in messages if m.role == "user")
+        upstream_messages.append(
+            {"role": "system", "content": CONTEXT_PREFIX + build_fact_sheet(parsed, user_text)}
+        )
+    else:
+        upstream_messages.extend(context_as_messages(payload.context))
     upstream_messages.extend({"role": m.role, "content": m.content} for m in messages)
 
     capped, retry_after = daily_cap.allow()

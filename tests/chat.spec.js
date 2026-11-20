@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { CHAT_API_URL as CHAT_URL } from '../js/chat.js';
+import { CHAT_API_URL as CHAT_URL, REQUEST_TIMEOUT_MS } from '../js/chat.js';
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'POST, OPTIONS',
@@ -67,8 +67,12 @@ test('提问后安全渲染回复，并带上站点摘要', async ({ page }) => 
     { role: 'user', content: '格园附近有充电桩吗？' },
   ]);
   expect(payload.context).toContain('格园1斋');
-  expect(payload.context).toContain('空闲');
-  expect(payload.context.length).toBeLessThanOrEqual(1800);
+  const context = JSON.parse(payload.context);
+  expect(context.v).toBe(1);
+  expect(context.stations.some((station) => station.name === '格园1斋' && Number.isFinite(station.idle))).toBe(true);
+  expect(context.buildings.some((building) => building.name === '郑东图书馆')).toBe(true);
+  expect(payload.context.length).toBeLessThanOrEqual(12000);
+  expect(REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(30000);
   expect(JSON.stringify(payload)).not.toMatch(/api[_-]?key|authorization/i);
 
   await page.keyboard.press('Escape');
@@ -278,4 +282,70 @@ test('窄屏打开站点抽屉后仍能点到助手', async ({ page }) => {
   expect(panel.x).toBeGreaterThanOrEqual(-1);
   expect(panel.x + panel.width).toBeLessThanOrEqual(391);
   expect(panel.y).toBeGreaterThanOrEqual(-1);
+});
+
+test('长回复滚到答案开头，而不是末尾', async ({ page }) => {
+  const reply = Array.from({ length: 40 }, (_, index) => `${index + 1}. 这是很长的一行说明，用来撑开气泡。`).join('\n');
+  await page.route(CHAT_URL, async (route) => {
+    await fulfillChat(route, 200, { reply });
+  });
+  await ready(page);
+  await page.locator('#chat-launcher').click();
+  await page.locator('#chat-input').fill('哪些站点现在比较空？');
+  await page.locator('#chat-send').click();
+  const bubble = page.locator('.chat-bubble.is-assistant');
+  await expect(bubble).toBeVisible();
+  const placed = await bubble.evaluate((node) => {
+    const log = node.closest('#chat-log');
+    const bubbleRect = node.getBoundingClientRect();
+    const logRect = log.getBoundingClientRect();
+    return {
+      topGap: Math.abs(bubbleRect.top - logRect.top),
+      taller: node.offsetHeight > log.clientHeight,
+      notAtEnd: log.scrollTop + log.clientHeight < log.scrollHeight - 20,
+    };
+  });
+  expect(placed.taller).toBe(true);
+  expect(placed.notAtEnd).toBe(true);
+  expect(placed.topGap).toBeLessThan(8);
+});
+
+test('围栏代码块按代码渲染，标签不会执行', async ({ page }) => {
+  let dialog = false;
+  page.on('dialog', () => { dialog = true; });
+  await page.route(CHAT_URL, async (route) => {
+    await fulfillChat(route, 200, {
+      reply: '看这段：\n```python\n<script>alert(1)</script>\nprint(1)\n```\n**结束**',
+    });
+  });
+  await ready(page);
+  await page.locator('#chat-launcher').click();
+  await page.locator('#chat-input').fill('看代码');
+  await page.locator('#chat-send').click();
+  const bubble = page.locator('.chat-bubble.is-assistant');
+  await expect(bubble.locator('pre code')).toContainText('print(1)');
+  await expect(bubble.locator('pre code')).toContainText('<script>');
+  await expect(bubble.locator('strong')).toHaveText('结束');
+  await expect(bubble.locator('script')).toHaveCount(0);
+  expect(dialog).toBe(false);
+});
+
+test('搜索建议不会盖住已经打开的助手', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ready(page);
+  await page.locator('#chat-launcher').click();
+  await expect(page.locator('#chat-panel')).toBeVisible();
+  const layers = await page.evaluate(() => ({
+    chat: Number(getComputedStyle(document.querySelector('.chat-widget')).zIndex),
+    search: Number(getComputedStyle(document.querySelector('#search-results')).zIndex),
+  }));
+  expect(layers.chat).toBeGreaterThan(layers.search);
+
+  await page.locator('#search-input').fill('格园');
+  await expect(page.locator('#search-results')).toBeVisible();
+  await expect(page.locator('#chat-panel')).toBeHidden();
+
+  await page.locator('#chat-launcher').click();
+  await expect(page.locator('#chat-panel')).toBeVisible();
+  await expect(page.locator('#search-results')).toBeHidden();
 });
