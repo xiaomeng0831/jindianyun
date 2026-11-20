@@ -152,13 +152,16 @@ flowchart LR
   api -->|"chat/completions"| model
 ```
 
-`CHAT_API_URL` 当前是 `https://23-100-88-70.sslip.io/api/chat`。Caddy 用 Let's Encrypt 为该主机名申请证书，再反代到本机 `127.0.0.1:8765`。进程由 systemd 服务 `jindianyun-chat.service` 启动。模型默认是 SiliconFlow 免费额度上的 `Qwen/Qwen3-8B`。
+`CHAT_API_URL` 写在 `js/chat.js`。文档和 Caddy 示例里的对外主机名用占位符 `chat.example.com`，安装时再换成真实主机名。Caddy 用 Let's Encrypt 为该主机名申请证书，再反代到本机 `127.0.0.1:8765`。Caddy 前面还有 Fastly；访问日志里像 `140.248.50.x` 这样的地址是 Caddy 看到的访客地址，不是本机反代。进程由 systemd 服务 `jindianyun-chat.service` 启动。模型默认是 SiliconFlow 免费额度上的 `Qwen/Qwen3-8B`。
 
 | 限制 | 行为 |
 | --- | --- |
-| 频率 | 每个 IP 每分钟 10 次、每天 100 次 |
+| 频率 | 每个访客 IP 每分钟 10 次、每天 100 次。超出返回 429、一句中文说明和 `Retry-After`。地址只在直连对端是 `127.0.0.1` / `::1` 时从 `X-Forwarded-For` 的最右侧非本机地址读取，不用最左侧（访客可伪造）。详见 [server/README.md](server/README.md) |
+| 全站 | 每天最多 1000 次上游模型调用（`CHAT_GLOBAL_DAILY_CAP`），超出同样是 429。这是费用保护 |
 | 对话 | 浏览器提交最近 12 轮（最多 24 条 user / assistant 消息）。服务端只把其中最后 12 条发给模型 |
-| 字数 | 这 12 条正文合计不超过 4000 字；单条最长 2000 字；站点摘要 `context` 最长 2000 字 |
+| 单条输入 | 浏览器输入框最多 800 字 |
+| 字数 | 服务端发给模型的这 12 条正文合计不超过 4000 字；单条最长 2000 字；站点摘要 `context` 最长 2000 字 |
+| 范围 | 只回答北洋园校区充电桩地图和津电云用法。编程、写作等无关请求由系统提示要求礼貌拒绝。回复若复述系统提示，服务端会整段换成拒绝 |
 | 来源 | CORS 只允许 `https://xiaomeng0831.github.io` |
 | 密钥 | 只放在服务器文件 `~/.sf_key`（可用环境变量 `SILICONFLOW_KEY_FILE` 改路径），权限 `600`。仓库的 `.gitignore` 会挡住同名文件 |
 
@@ -191,8 +194,10 @@ flowchart LR
 │   └── screenshots/         桌面端、移动端与问答助手预览图
 ├── server/                  问答后端参考实现（Pages 不运行，不含密钥）
 │   ├── README.md            虚拟环境、密钥文件、systemd、Caddy、curl、轮换与日志
-│   ├── app.py               与线上一致的 FastAPI 应用
+│   ├── app.py               FastAPI 应用（访客 IP 限流、全站上限、提示词过滤）
 │   ├── requirements.txt     线上使用的 Python 依赖版本
+│   ├── requirements-dev.txt 离线 pytest，不装进线上环境
+│   ├── tests/               不访问网络的后端测试
 │   ├── jindianyun-chat.service
 │   └── Caddyfile.example    域名与 ACME 邮箱为占位符
 └── scripts/                 数据构建与本地代理脚本

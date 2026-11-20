@@ -58,10 +58,14 @@ python3 -m http.server 8000
 
 请确认：地图能画出来、搜索能出结果、点站点能开面板、点插口能看到预计结束时间、移动端没有横向滚动。本地打开时可以点开问答面板；向生产接口提问会被 CORS 拒绝，页面会提示助手服务暂时连不上，地图应仍能使用。
 
-改过 `server/app.py` 时再跑一次语法检查：
+改过 `server/app.py` 时再跑语法检查和离线测试（不访问网络，不读真实密钥）。测试要在 `server/` 目录执行，才会用到那里的 `pytest.ini`：
 
 ```bash
 python3 -m py_compile server/app.py
+cd server
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+.venv/bin/pytest
 ```
 
 可选冒烟测试（不参与 GitHub Pages 部署）：

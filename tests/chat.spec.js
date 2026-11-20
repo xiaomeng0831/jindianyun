@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-const CHAT_URL = 'https://23-100-88-70.sslip.io/api/chat';
+import { CHAT_API_URL as CHAT_URL } from '../js/chat.js';
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'POST, OPTIONS',
@@ -234,6 +233,23 @@ test('损坏的会话记录不会挡住地图，助手按钮也不遮挡缩放�
   const station = await page.locator('#panel').boundingBox();
   expect(overlaps(launcherOpen, station)).toBe(false);
   await page.locator('#map-zoom-out').click();
+});
+
+test('320 宽输入框的占位文字完整可见', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await ready(page);
+  await page.locator('#chat-launcher').click();
+  const input = page.locator('#chat-input');
+  await expect(input).toHaveAttribute('placeholder', '输入你的问题');
+  const fits = await input.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const canvas = document.createElement('canvas').getContext('2d');
+    canvas.font = style.font;
+    const textWidth = canvas.measureText(el.placeholder).width;
+    const pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    return textWidth <= el.clientWidth - pad + 1;
+  });
+  expect(fits).toBe(true);
 });
 
 test('窄屏打开站点抽屉后仍能点到助手', async ({ page }) => {
